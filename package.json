@@ -1,6 +1,6 @@
 {
   "name": "bb-motion",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "engines": {
     "bb": ">=0.44",
@@ -8,7 +8,7 @@
   },
   "bb": {
     "name": "Motion",
-    "description": "사이드바가 열리고 닫힐 때 패널이 부드럽게 들어오고 나간다.",
+    "description": "왼쪽 사이드바와 우측 패널이 열리고 닫힐 때 같은 깊이로 들어오고 나간다.",
     "branding": {
       "icon": "PanelLeft"
     },

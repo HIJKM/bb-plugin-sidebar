@@ -1,8 +1,26 @@
 const STYLE_ID = "bb-motion";
 const DEPTH_VAR = "--lite-sidebar-depth";
+const RIGHT_DEPTH_VAR = "--bb-motion-right-depth";
 const PARKED = "liteSidebarParked";
+const RIGHT_PARKED = "bbMotionRightParked";
+const RIGHT_PIN = "bbMotionPin";
 const SLIDE_MS = 720;
 const SLIDE_EASE = "cubic-bezier(0.32, 0.72, 0, 1)";
+const RIGHT_PANEL = "[data-panel] > aside";
+const RIGHT_SHELF = '[data-testid="secondary-panel-shelf"]';
+
+const RIGHT_DEPTH_TRANSFORM = `
+  filter: brightness(calc(0.7 + var(${RIGHT_DEPTH_VAR}) * 0.3));
+  opacity: calc(0.16 + var(${RIGHT_DEPTH_VAR}) * 0.84);
+  transform: perspective(1100px)
+    translate3d(
+      calc((1 - var(${RIGHT_DEPTH_VAR})) * 8%),
+      calc((1 - var(${RIGHT_DEPTH_VAR})) * 14px),
+      calc((1 - var(${RIGHT_DEPTH_VAR})) * -160px)
+    )
+    scale(calc(0.88 + var(${RIGHT_DEPTH_VAR}) * 0.12));
+  transform-origin: 100% 42%;
+`;
 
 const SIDEBAR_DEPTH_CSS = `
 [data-sidebar="gap"] {
@@ -30,13 +48,49 @@ const SIDEBAR_DEPTH_CSS = `
   pointer-events: none;
   visibility: hidden !important;
 }
+[data-panel-group][style*="220ms"]:has(${RIGHT_PANEL}),
+[style*="220ms"]:has(> [data-panel-group] ${RIGHT_PANEL}) {
+  --panel-collapse-duration: ${SLIDE_MS}ms !important;
+}
+${RIGHT_PANEL} {
+  ${RIGHT_DEPTH_VAR}: 1;
+  ${RIGHT_DEPTH_TRANSFORM}
+}
+${RIGHT_PANEL}[data-bb-motion-pin] {
+  left: auto !important;
+  right: 0 !important;
+}
+${RIGHT_PANEL}[data-bb-motion-right-parked] {
+  pointer-events: none;
+}
+${RIGHT_SHELF} {
+  ${RIGHT_DEPTH_VAR}: 1;
+  ${RIGHT_DEPTH_TRANSFORM}
+}
+${RIGHT_SHELF}[data-state="closed"] {
+  visibility: hidden !important;
+  transition: visibility 0s linear ${SLIDE_MS}ms !important;
+}
+[data-sidebar="inset"][data-panel-shelf] {
+  transition: translate ${SLIDE_MS}ms ${SLIDE_EASE};
+}
 @media (prefers-reduced-motion: reduce) {
   [data-sidebar="gap"],
-  [data-sidebar="panel"] {
+  [data-sidebar="panel"],
+  ${RIGHT_PANEL},
+  ${RIGHT_SHELF} {
     filter: none !important;
     opacity: 1 !important;
     transform: none !important;
     transition: none !important;
+  }
+  [data-panel-group][style*="220ms"]:has(${RIGHT_PANEL}),
+  [style*="220ms"]:has(> [data-panel-group] ${RIGHT_PANEL}) {
+    --panel-collapse-duration: 220ms !important;
+  }
+  ${RIGHT_PANEL}[data-bb-motion-pin] {
+    left: 0 !important;
+    right: auto !important;
   }
 }
 `;
@@ -44,6 +98,20 @@ const SIDEBAR_DEPTH_CSS = `
 export function sidebarDepthProgress(box: { left: number; width: number }): number {
   if (box.width <= 0) return 0;
   return clamp((box.left + box.width) / box.width);
+}
+
+export function rightPanelDepthProgress(
+  panel: { left: number; right: number; width: number },
+  clip: { left: number; right: number },
+): number {
+  if (panel.width <= 0) return 0;
+  const visible = Math.max(0, Math.min(panel.right, clip.right) - Math.max(panel.left, clip.left));
+  return clamp(visible / panel.width);
+}
+
+export function rightShelfProgress(translateX: number, width: number): number {
+  if (width <= 0) return 0;
+  return clamp(Math.abs(translateX) / width);
 }
 
 export function mobileShelfProgress(translateX: number, width: number): number {
@@ -99,11 +167,50 @@ export function readSidebarDepth(doc: Document, panel: HTMLElement): number {
   return sidebarDepthProgress(panel.getBoundingClientRect());
 }
 
+export function applyRightDepth(panel: HTMLElement, progress: number, pin: boolean): void {
+  const next = clamp(progress);
+  panel.style.setProperty(RIGHT_DEPTH_VAR, String(next));
+  if (pin) panel.dataset[RIGHT_PIN] = "";
+  else delete panel.dataset[RIGHT_PIN];
+  if (next <= 0.012) panel.dataset[RIGHT_PARKED] = "";
+  else delete panel.dataset[RIGHT_PARKED];
+}
+
+export function readRightDepth(aside: HTMLElement): number {
+  const clip = aside.parentElement?.getBoundingClientRect();
+  if (clip === undefined) return 1;
+  return rightPanelDepthProgress(aside.getBoundingClientRect(), clip);
+}
+
+export function readRightShelfDepth(doc: Document, shelf: HTMLElement): number {
+  const inset = doc.querySelector<HTMLElement>('[data-sidebar="inset"]');
+  const width = shelf.getBoundingClientRect().width;
+  if (inset === null || width <= 0) {
+    return shelf.getAttribute("data-state") === "closed" ? 0 : 1;
+  }
+  const style = doc.defaultView?.getComputedStyle?.(inset) ?? {
+    translate: inset.style.translate,
+    transform: inset.style.transform,
+  };
+  return rightShelfProgress(readTranslateX(style), width);
+}
+
 export function syncSidebarDepth(doc: Document): number {
   if (prefersReducedMotion(doc)) return 0;
   let count = 0;
   doc.querySelectorAll<HTMLElement>('[data-sidebar="panel"]').forEach((panel) => {
     applySidebarDepth(panel, readSidebarDepth(doc, panel));
+    count += 1;
+  });
+  doc.querySelectorAll<HTMLElement>(RIGHT_PANEL).forEach((aside) => {
+    const pin = aside.style.width !== "";
+    if (pin) aside.dataset[RIGHT_PIN] = "";
+    else delete aside.dataset[RIGHT_PIN];
+    applyRightDepth(aside, readRightDepth(aside), pin);
+    count += 1;
+  });
+  doc.querySelectorAll<HTMLElement>(RIGHT_SHELF).forEach((shelf) => {
+    applyRightDepth(shelf, readRightShelfDepth(doc, shelf), false);
     count += 1;
   });
   return count;
@@ -136,7 +243,23 @@ function trackSidebarDepth(doc: Document): () => void {
   let frame = 0;
   let still = 0;
   let last = "";
+  let resize: ResizeObserver | null = null;
+  const seen = new WeakSet<Element>();
+  const watch = (node: Element | null): void => {
+    if (node === null || seen.has(node)) return;
+    seen.add(node);
+    resize?.observe(node);
+  };
+  const watchAll = (): void => {
+    doc.querySelectorAll('[data-sidebar="panel"], [data-sidebar="inset"]').forEach(watch);
+    doc.querySelectorAll<HTMLElement>(RIGHT_PANEL).forEach((aside) => {
+      watch(aside);
+      watch(aside.parentElement);
+    });
+    doc.querySelectorAll(RIGHT_SHELF).forEach(watch);
+  };
   const tick = (): void => {
+    watchAll();
     const next = snapshot(doc);
     if (next !== last) {
       last = next;
@@ -152,6 +275,7 @@ function trackSidebarDepth(doc: Document): () => void {
     still = 0;
     if (frame === 0) frame = raf(tick);
   };
+  resize = typeof ResizeObserver === "function" ? new ResizeObserver(kick) : null;
 
   kick();
   const mutations = new MutationObserver(kick);
@@ -159,6 +283,7 @@ function trackSidebarDepth(doc: Document): () => void {
     attributeFilter: [
       "class",
       "data-collapsible",
+      "data-panel-shelf",
       "data-sidebar-shelf",
       "data-state",
       "style",
@@ -166,10 +291,7 @@ function trackSidebarDepth(doc: Document): () => void {
     attributes: true,
     subtree: true,
   });
-  const resize = typeof ResizeObserver === "function" ? new ResizeObserver(kick) : null;
-  doc.querySelectorAll('[data-sidebar="panel"], [data-sidebar="inset"]').forEach((node) => {
-    resize?.observe(node);
-  });
+  watchAll();
   view?.addEventListener("pointerdown", kick, true);
   view?.addEventListener("pointermove", kick, true);
   view?.addEventListener("wheel", kick, { capture: true, passive: true });
@@ -187,12 +309,22 @@ function trackSidebarDepth(doc: Document): () => void {
 }
 
 function snapshot(doc: Document): string {
-  return Array.from(doc.querySelectorAll<HTMLElement>('[data-sidebar="panel"]'))
+  const left = Array.from(doc.querySelectorAll<HTMLElement>('[data-sidebar="panel"]'))
     .map((panel) => {
       const box = panel.getBoundingClientRect();
       return `${box.left}:${box.width}:${readSidebarDepth(doc, panel).toFixed(3)}`;
     })
     .join("|");
+  const right = Array.from(doc.querySelectorAll<HTMLElement>(`${RIGHT_PANEL}, ${RIGHT_SHELF}`))
+    .map((panel) => {
+      const box = panel.getBoundingClientRect();
+      const depth = panel.matches(RIGHT_SHELF)
+        ? readRightShelfDepth(doc, panel)
+        : readRightDepth(panel);
+      return `${box.left}:${box.width}:${depth.toFixed(3)}`;
+    })
+    .join("|");
+  return `${left}#${right}`;
 }
 
 function prefersReducedMotion(doc: Document): boolean {

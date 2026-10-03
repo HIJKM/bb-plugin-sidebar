@@ -1,11 +1,15 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  applyRightDepth,
   applySidebarDepth,
   injectSidebarDepth,
   mobileShelfProgress,
+  readRightDepth,
   readSidebarDepth,
   readTranslateX,
+  rightPanelDepthProgress,
+  rightShelfProgress,
   sidebarDepthProgress,
   syncSidebarDepth,
 } from "./sidebar-depth.ts";
@@ -15,6 +19,23 @@ describe("sidebarDepthProgress", () => {
     assert.equal(sidebarDepthProgress({ left: 0, width: 256 }), 1);
     assert.equal(sidebarDepthProgress({ left: -128, width: 256 }), 0.5);
     assert.equal(sidebarDepthProgress({ left: -256, width: 256 }), 0);
+  });
+});
+
+describe("rightPanelDepthProgress", () => {
+  it("measures how much of the right panel the clip still shows", () => {
+    const panel = { left: 100, right: 300, width: 200 };
+    assert.equal(rightPanelDepthProgress(panel, { left: 100, right: 300 }), 1);
+    assert.equal(rightPanelDepthProgress(panel, { left: 200, right: 300 }), 0.5);
+    assert.equal(rightPanelDepthProgress(panel, { left: 300, right: 300 }), 0);
+  });
+});
+
+describe("rightShelfProgress", () => {
+  it("maps a leftward inset translate onto the shelf width", () => {
+    assert.equal(rightShelfProgress(0, 320), 0);
+    assert.equal(rightShelfProgress(-160, 320), 0.5);
+    assert.equal(rightShelfProgress(-320, 320), 1);
   });
 });
 
@@ -68,6 +89,50 @@ describe("readSidebarDepth", () => {
   });
 });
 
+describe("readRightDepth", () => {
+  it("pins a sized panel to the right and reads the clip overlap", () => {
+    const clip = { left: 200, right: 300, width: 100 };
+    const aside = {
+      dataset: {} as Record<string, string | undefined>,
+      style: {
+        width: "40cqw",
+        props: new Map<string, string>(),
+        setProperty(name: string, value: string) {
+          this.props.set(name, value);
+        },
+      },
+      parentElement: { getBoundingClientRect: () => clip },
+      getBoundingClientRect: () => ({ left: 100, right: 300, width: 200 }),
+    };
+    const doc = {
+      defaultView: null,
+      querySelectorAll: (selector: string) =>
+        selector === "[data-panel] > aside" ? [aside] : [],
+    };
+    assert.equal(syncSidebarDepth(doc as unknown as Document), 1);
+    assert.equal(aside.dataset.bbMotionPin, "");
+    assert.equal(readRightDepth(aside as unknown as HTMLElement), 0.5);
+    assert.equal(aside.style.props.get("--bb-motion-right-depth"), "0.5");
+  });
+});
+
+describe("applyRightDepth", () => {
+  it("drops the right pin when the panel is being dragged", () => {
+    const panel = {
+      dataset: { bbMotionPin: "" } as Record<string, string | undefined>,
+      style: {
+        props: new Map<string, string>(),
+        setProperty(name: string, value: string) {
+          this.props.set(name, value);
+        },
+      },
+    };
+    applyRightDepth(panel as unknown as HTMLElement, 1, false);
+    assert.equal(panel.dataset.bbMotionPin, undefined);
+    assert.equal(panel.dataset.bbMotionRightParked, undefined);
+  });
+});
+
 describe("syncSidebarDepth", () => {
   it("applies the current desktop rect to the panel", () => {
     const panel = {
@@ -83,7 +148,8 @@ describe("syncSidebarDepth", () => {
     };
     const doc = {
       defaultView: null,
-      querySelectorAll: () => [panel],
+      querySelectorAll: (selector: string) =>
+        selector === '[data-sidebar="panel"]' ? [panel] : [],
     };
     assert.equal(syncSidebarDepth(doc as unknown as Document), 1);
     assert.equal(panel.style.props.get("--lite-sidebar-depth"), "0.75");
@@ -115,6 +181,7 @@ describe("injectSidebarDepth", () => {
     const stop = injectSidebarDepth(doc as unknown as Document);
     assert.equal(nodes.length, 1);
     assert.match(nodes[0].textContent, /--lite-sidebar-depth/);
+    assert.match(nodes[0].textContent, /--bb-motion-right-depth/);
     assert.match(nodes[0].textContent, /720ms/);
     assert.doesNotMatch(nodes[0].textContent, /transform 420ms/);
     stop();
