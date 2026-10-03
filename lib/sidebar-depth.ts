@@ -1,4 +1,4 @@
-const STYLE_ID = "sidebar-motion";
+const STYLE_ID = "bb-motion";
 const DEPTH_VAR = "--lite-sidebar-depth";
 const PARKED = "liteSidebarParked";
 const SLIDE_MS = 720;

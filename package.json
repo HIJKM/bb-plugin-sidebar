@@ -1,5 +1,5 @@
 {
-  "name": "bb-plugin-sidebar-motion",
+  "name": "bb-motion",
   "version": "0.1.0",
   "type": "module",
   "engines": {
@@ -7,7 +7,7 @@
     "bbPluginSdk": ">=0.6.5"
   },
   "bb": {
-    "name": "Sidebar Motion",
+    "name": "Motion",
     "description": "사이드바가 열리고 닫힐 때 패널이 부드럽게 들어오고 나간다.",
     "branding": {
       "icon": "PanelLeft"
