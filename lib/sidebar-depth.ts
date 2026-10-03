@@ -4,6 +4,8 @@ const RIGHT_DEPTH_VAR = "--bb-motion-right-depth";
 const PARKED = "liteSidebarParked";
 const RIGHT_PARKED = "bbMotionRightParked";
 const RIGHT_PIN = "bbMotionPin";
+const SCREEN = "bbMotionScreen";
+const SCREEN_MOVE_PX = 1;
 const SLIDE_MS = 720;
 const SLIDE_EASE = "cubic-bezier(0.32, 0.72, 0, 1)";
 const RIGHT_PANEL = "[data-panel] > aside";
@@ -62,6 +64,12 @@ ${RIGHT_SHELF}[data-state="closed"] {
 }
 [data-sidebar="inset"][data-panel-shelf] {
   transition: translate ${SLIDE_MS}ms ${SLIDE_EASE};
+}
+@media (max-width: 767px) {
+  [data-sidebar="inset"][data-bb-motion-screen] {
+    border-radius: 55px;
+    overflow: clip;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   [data-sidebar="gap"],
@@ -140,6 +148,31 @@ export function readTranslateX(
   return 0;
 }
 
+export function applyChatScreen(inset: HTMLElement, translateX: number): "push" | null {
+  const wasOn = inset.dataset[SCREEN] !== undefined;
+  const shelf = inset.getAttribute("data-sidebar-shelf");
+  const panelShelf = inset.getAttribute("data-panel-shelf");
+  const heldOpen = shelf === "open" || panelShelf === "shelf" || panelShelf === "full";
+  const on = heldOpen || Math.abs(translateX) > SCREEN_MOVE_PX;
+  if (on) inset.dataset[SCREEN] = "";
+  else delete inset.dataset[SCREEN];
+  return on && !wasOn ? "push" : null;
+}
+
+export function postSlideHaptic(native: {
+  post?: (message: unknown) => void;
+  capabilities?: readonly string[];
+} | null): boolean {
+  if (native === null || typeof native.post !== "function") return false;
+  if (!native.capabilities?.includes("haptic")) return false;
+  try {
+    native.post({ type: "haptic", kind: "impact-light" });
+  } catch {
+    return false;
+  }
+  return true;
+}
+
 export function applySidebarDepth(panel: HTMLElement, progress: number): void {
   const next = clamp(progress);
   panel.style.setProperty(DEPTH_VAR, String(next));
@@ -192,6 +225,7 @@ export function readRightShelfDepth(doc: Document, shelf: HTMLElement): number {
 }
 
 export function syncSidebarDepth(doc: Document): number {
+  syncChatScreen(doc);
   if (prefersReducedMotion(doc)) return 0;
   let count = 0;
   doc.querySelectorAll<HTMLElement>('[data-sidebar="panel"]').forEach((panel) => {
@@ -306,6 +340,7 @@ function trackSidebarDepth(doc: Document): () => void {
   view?.addEventListener("transitionend", followSlide, true);
 
   return () => {
+    clearChatScreen(doc);
     if (frame !== 0) cancel?.(frame);
     mutations.disconnect();
     resize?.disconnect();
@@ -316,6 +351,13 @@ function trackSidebarDepth(doc: Document): () => void {
     view?.removeEventListener("transitionrun", followSlide, true);
     view?.removeEventListener("transitionend", followSlide, true);
   };
+}
+
+function clearChatScreen(doc: Document): void {
+  chatScreenPrimed = false;
+  if (typeof doc.querySelector !== "function") return;
+  const inset = doc.querySelector<HTMLElement>('[data-sidebar="inset"]');
+  if (inset !== null) delete inset.dataset[SCREEN];
 }
 
 function snapshot(doc: Document): string {
@@ -335,6 +377,39 @@ function snapshot(doc: Document): string {
     })
     .join("|");
   return `${left}#${right}`;
+}
+
+let chatScreenPrimed = false;
+
+function syncChatScreen(doc: Document): void {
+  if (typeof doc.querySelector !== "function") return;
+  const inset = doc.querySelector<HTMLElement>('[data-sidebar="inset"]');
+  if (inset === null) return;
+  if (prefersReducedMotion(doc)) {
+    delete inset.dataset[SCREEN];
+    return;
+  }
+  const style = doc.defaultView?.getComputedStyle?.(inset) ?? {
+    translate: inset.style.translate,
+    transform: inset.style.transform,
+  };
+  const width = inset.getBoundingClientRect?.().width ?? 0;
+  const edge = applyChatScreen(inset, readTranslateX(style, width));
+  if (!chatScreenPrimed) {
+    chatScreenPrimed = true;
+    return;
+  }
+  if (edge === "push") postSlideHaptic(readNativeBridge(doc));
+}
+
+function readNativeBridge(doc: Document): {
+  post?: (message: unknown) => void;
+  capabilities?: readonly string[];
+} | null {
+  const root = doc.defaultView as
+    | (Window & { bb?: { native?: { post?: (message: unknown) => void; capabilities?: readonly string[] } } })
+    | null;
+  return root?.bb?.native ?? null;
 }
 
 function parseTranslateToken(token: string, referenceWidth: number): number {

@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  applyChatScreen,
   applyRightDepth,
   applySidebarDepth,
   injectSidebarDepth,
   mobileShelfProgress,
+  postSlideHaptic,
   readRightDepth,
   readRightShelfDepth,
   readSidebarDepth,
@@ -230,7 +232,84 @@ function assertSlideInFromHalfway(css: string): void {
     css.match(/\[data-panel\] > aside \{[^}]*\}/)?.[0] ?? "";
   assert.match(aside, /brightness\(calc\(0\.7 \+ var\(--bb-motion-right-depth\) \* 0\.3\)\)/);
   assert.doesNotMatch(aside, /translateX/);
+  assert.match(
+    css,
+    /@media \(max-width: 767px\) \{\s*\[data-sidebar="inset"\]\[data-bb-motion-screen\] \{\s*border-radius: 55px;\s*overflow: clip;/,
+  );
 }
+
+describe("syncSidebarDepth chat screen", () => {
+  it("does not haptic when the first sample is already pushed", () => {
+    const sent: unknown[] = [];
+    let translate = "80px";
+    const inset = {
+      dataset: {} as Record<string, string | undefined>,
+      style: { translate: "", transform: "" },
+      getAttribute: () => null,
+      getBoundingClientRect: () => ({ width: 390 }),
+    };
+    const doc = {
+      defaultView: {
+        bb: { native: { post: (message: unknown) => sent.push(message), capabilities: ["haptic"] } },
+        getComputedStyle: () => ({ translate, transform: "none" }),
+        matchMedia: () => ({ matches: false }),
+      },
+      querySelector: (selector: string) => (selector === '[data-sidebar="inset"]' ? inset : null),
+      querySelectorAll: () => [],
+    };
+    syncSidebarDepth(doc as unknown as Document);
+    assert.equal(inset.dataset.bbMotionScreen, "");
+    assert.deepEqual(sent, []);
+    translate = "0px";
+    syncSidebarDepth(doc as unknown as Document);
+    translate = "80px";
+    syncSidebarDepth(doc as unknown as Document);
+    assert.deepEqual(sent, [{ type: "haptic", kind: "impact-light" }]);
+  });
+});
+
+describe("applyChatScreen", () => {
+  it("rounds the chat while it is pushed and asks for one haptic", () => {
+    const inset = {
+      dataset: {} as Record<string, string | undefined>,
+      getAttribute: (name: string) => (name === "data-panel-shelf" ? "closed" : null),
+    };
+    const element = inset as unknown as HTMLElement;
+    assert.equal(applyChatScreen(element, 0), null);
+    assert.equal(inset.dataset.bbMotionScreen, undefined);
+    assert.equal(applyChatScreen(element, 80), "push");
+    assert.equal(inset.dataset.bbMotionScreen, "");
+    assert.equal(applyChatScreen(element, 120), null);
+    assert.equal(applyChatScreen(element, 0), null);
+    assert.equal(inset.dataset.bbMotionScreen, undefined);
+  });
+
+  it("keeps the radius while a shelf is open even if translate reads zero", () => {
+    const inset = {
+      dataset: {} as Record<string, string | undefined>,
+      getAttribute: (name: string) => (name === "data-sidebar-shelf" ? "open" : null),
+    };
+    assert.equal(applyChatScreen(inset as unknown as HTMLElement, 0), "push");
+    assert.equal(inset.dataset.bbMotionScreen, "");
+  });
+});
+
+describe("postSlideHaptic", () => {
+  it("posts one light impact only when the phone bridge allows it", () => {
+    const sent: unknown[] = [];
+    assert.equal(postSlideHaptic(null), false);
+    assert.equal(
+      postSlideHaptic({ post: (message) => sent.push(message), capabilities: ["share"] }),
+      false,
+    );
+    assert.equal(sent.length, 0);
+    assert.equal(
+      postSlideHaptic({ post: (message) => sent.push(message), capabilities: ["haptic"] }),
+      true,
+    );
+    assert.deepEqual(sent, [{ type: "haptic", kind: "impact-light" }]);
+  });
+});
 
 describe("injectSidebarDepth", () => {
   it("writes a position-driven stylesheet and removes it on cleanup", () => {
