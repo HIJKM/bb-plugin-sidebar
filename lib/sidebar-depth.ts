@@ -9,17 +9,9 @@ const SLIDE_EASE = "cubic-bezier(0.32, 0.72, 0, 1)";
 const RIGHT_PANEL = "[data-panel] > aside";
 const RIGHT_SHELF = '[data-testid="secondary-panel-shelf"]';
 
-const RIGHT_DEPTH_TRANSFORM = `
+const RIGHT_DEPTH_LOOK = `
   filter: brightness(calc(0.7 + var(${RIGHT_DEPTH_VAR}) * 0.3));
-  opacity: calc(0.16 + var(${RIGHT_DEPTH_VAR}) * 0.84);
-  transform: perspective(1100px)
-    translate3d(
-      calc((1 - var(${RIGHT_DEPTH_VAR})) * 8%),
-      calc((1 - var(${RIGHT_DEPTH_VAR})) * 14px),
-      calc((1 - var(${RIGHT_DEPTH_VAR})) * -160px)
-    )
-    scale(calc(0.88 + var(${RIGHT_DEPTH_VAR}) * 0.12));
-  transform-origin: 100% 42%;
+  opacity: 1;
 `;
 
 const SIDEBAR_DEPTH_CSS = `
@@ -29,20 +21,16 @@ const SIDEBAR_DEPTH_CSS = `
 [data-sidebar="panel"] {
   ${DEPTH_VAR}: 1;
   filter: brightness(calc(0.7 + var(${DEPTH_VAR}) * 0.3));
-  opacity: calc(0.16 + var(${DEPTH_VAR}) * 0.84);
-  transform: perspective(1100px)
-    translate3d(
-      calc((1 - var(${DEPTH_VAR})) * -8%),
-      calc((1 - var(${DEPTH_VAR})) * 14px),
-      calc((1 - var(${DEPTH_VAR})) * -160px)
-    )
-    scale(calc(0.88 + var(${DEPTH_VAR}) * 0.12));
-  transform-origin: 0% 42%;
+  opacity: 1;
   transition:
     left ${SLIDE_MS}ms ${SLIDE_EASE},
     width ${SLIDE_MS}ms ${SLIDE_EASE},
     visibility 0s linear 0s !important;
   visibility: visible !important;
+}
+[data-sidebar="panel"][data-vaul-drawer-direction="left"] {
+  z-index: 35;
+  transform: translateX(calc((1 - var(${DEPTH_VAR})) * -50%));
 }
 [data-sidebar="panel"][data-lite-sidebar-parked] {
   pointer-events: none;
@@ -54,7 +42,7 @@ const SIDEBAR_DEPTH_CSS = `
 }
 ${RIGHT_PANEL} {
   ${RIGHT_DEPTH_VAR}: 1;
-  ${RIGHT_DEPTH_TRANSFORM}
+  ${RIGHT_DEPTH_LOOK}
 }
 ${RIGHT_PANEL}[data-bb-motion-pin] {
   left: auto !important;
@@ -63,10 +51,13 @@ ${RIGHT_PANEL}[data-bb-motion-pin] {
 ${RIGHT_PANEL}[data-bb-motion-right-parked] {
   pointer-events: none;
 }
+${RIGHT_SHELF}:not([data-state="full"]) {
+  z-index: 35 !important;
+}
 ${RIGHT_SHELF} {
-  z-index: 0 !important;
   ${RIGHT_DEPTH_VAR}: 1;
-  ${RIGHT_DEPTH_TRANSFORM}
+  ${RIGHT_DEPTH_LOOK}
+  transform: translateX(calc((1 - var(${RIGHT_DEPTH_VAR})) * 50%));
 }
 ${RIGHT_SHELF}[data-state="closed"] {
   visibility: hidden !important;

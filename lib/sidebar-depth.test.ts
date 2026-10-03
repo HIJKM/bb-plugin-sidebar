@@ -207,6 +207,30 @@ describe("syncSidebarDepth", () => {
   });
 });
 
+function assertSlideInFromHalfway(css: string): void {
+  assert.match(css, /brightness\(calc\(0\.7 \+ var\(--lite-sidebar-depth\) \* 0\.3\)\)/);
+  assert.match(css, /brightness\(calc\(0\.7 \+ var\(--bb-motion-right-depth\) \* 0\.3\)\)/);
+  assert.doesNotMatch(css, /perspective\(/);
+  assert.doesNotMatch(css, /scale\(/);
+  assert.doesNotMatch(css, /opacity: calc\(0\.16/);
+  assert.match(
+    css,
+    /\[data-sidebar="panel"\]\[data-vaul-drawer-direction="left"\] \{[^}]*z-index: 35;[^}]*translateX\(calc\(\(1 - var\(--lite-sidebar-depth\)\) \* -50%\)\)/,
+  );
+  assert.match(
+    css,
+    /\[data-testid="secondary-panel-shelf"\] \{[^}]*translateX\(calc\(\(1 - var\(--bb-motion-right-depth\)\) \* 50%\)\)/,
+  );
+  assert.match(
+    css,
+    /\[data-testid="secondary-panel-shelf"\]:not\(\[data-state="full"\]\) \{\s*z-index: 35 !important;/,
+  );
+  const aside =
+    css.match(/\[data-panel\] > aside \{[^}]*\}/)?.[0] ?? "";
+  assert.match(aside, /brightness\(calc\(0\.7 \+ var\(--bb-motion-right-depth\) \* 0\.3\)\)/);
+  assert.doesNotMatch(aside, /translateX/);
+}
+
 describe("injectSidebarDepth", () => {
   it("writes a position-driven stylesheet and removes it on cleanup", () => {
     const nodes: { id: string; textContent: string }[] = [];
@@ -233,12 +257,9 @@ describe("injectSidebarDepth", () => {
     assert.equal(nodes.length, 1);
     assert.match(nodes[0].textContent, /--lite-sidebar-depth/);
     assert.match(nodes[0].textContent, /--bb-motion-right-depth/);
-    assert.match(
-      nodes[0].textContent,
-      /\[data-testid="secondary-panel-shelf"\] \{\s*z-index: 0 !important;/,
-    );
     assert.match(nodes[0].textContent, /720ms/);
     assert.doesNotMatch(nodes[0].textContent, /transform 420ms/);
+    assertSlideInFromHalfway(nodes[0].textContent);
     stop();
     assert.equal(nodes.length, 0);
   });
