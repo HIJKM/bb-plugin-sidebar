@@ -407,6 +407,15 @@ export function applyChatScreen(inset: HTMLElement, translateX: number): "push" 
   return on && !wasOn ? "push" : null;
 }
 
+export function blurComposerCaret(doc: Document): boolean {
+  const active = doc.activeElement;
+  if (active == null || typeof active.closest !== "function") return false;
+  if (active.closest("[data-promptbox]") === null) return false;
+  if (typeof active.blur !== "function") return false;
+  active.blur();
+  return true;
+}
+
 export function postSlideHaptic(native: {
   post?: (message: unknown) => void;
   capabilities?: readonly string[];
@@ -799,6 +808,7 @@ function syncChatScreen(doc: Document): void {
     return;
   }
   const fresh = consumeSuppress(haptics);
+  if (fresh.includes("open") && sidebarPhase.side === "left") blurComposerCaret(doc);
   if (finger !== null) {
     heldHaptics.push(...fresh);
     return;
@@ -887,6 +897,12 @@ function trackFingerUp(doc: Document, event: Event): void {
   if (decision.suppress.length > 0) {
     suppressHaptics.push(...decision.suppress);
     suppressUntil = now + SUPPRESS_MS;
+  }
+  if (
+    decision.haptics.includes("open") &&
+    (release.target === "left-trigger" || release.target === "inset")
+  ) {
+    blurComposerCaret(doc);
   }
   if (decision.haptics.length === 0) return;
   const native = readNativeBridge(doc);

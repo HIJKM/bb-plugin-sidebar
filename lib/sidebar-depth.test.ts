@@ -9,6 +9,7 @@ import {
   injectSidebarDepth,
   mobileShelfProgress,
   nextSidebarPhase,
+  blurComposerCaret,
   postSlideHaptic,
   isRightPanelTabPress,
   rightPanelTabSwipe,
@@ -599,6 +600,13 @@ describe("sidebar finger release", () => {
 function mountFingerHarness() {
   const sent: unknown[] = [];
   let translate = "0px";
+  let blurCount = 0;
+  const composer = releaseElement({ "data-promptbox": "" });
+  const editor = Object.assign(releaseElement({}, composer), {
+    blur() {
+      blurCount += 1;
+    },
+  });
   const listeners = new Map<string, Array<(event: Event) => void>>();
   const trigger = releaseElement({ "data-sidebar": "trigger", tag: "button" });
   const row = releaseElement({ "data-sidebar": "panel" });
@@ -617,6 +625,7 @@ function mountFingerHarness() {
     style: { setProperty() {}, removeProperty() {} },
   };
   const doc = {
+    activeElement: editor,
     body: {},
     defaultView: {
       bb: { native: { post: (message: unknown) => sent.push(message), capabilities: ["haptic"] } },
@@ -656,6 +665,9 @@ function mountFingerHarness() {
   const stop = injectSidebarDepth(doc as unknown as Document);
   return {
     sent,
+    get blurCount() {
+      return blurCount;
+    },
     trigger,
     child,
     insetTarget,
@@ -674,6 +686,74 @@ function mountFingerHarness() {
     },
   };
 }
+
+describe("blurComposerCaret", () => {
+  it("blurs the composer and leaves other fields alone", () => {
+    const composer = releaseElement({ "data-promptbox": "" });
+    let blurred = 0;
+    const editor = Object.assign(releaseElement({}, composer), {
+      blur() {
+        blurred += 1;
+      },
+    });
+    assert.equal(blurComposerCaret({ activeElement: editor } as unknown as Document), true);
+    assert.equal(blurred, 1);
+    const field = Object.assign(releaseElement({ tag: "input" }), { blur() { blurred += 1; } });
+    assert.equal(blurComposerCaret({ activeElement: field } as unknown as Document), false);
+    assert.equal(blurred, 1);
+    assert.equal(blurComposerCaret({ activeElement: null } as unknown as Document), false);
+  });
+});
+
+describe("sidebar finger release", () => {
+  it("drops the composer caret when the left sidebar opens", () => {
+    const harness = mountFingerHarness();
+    try {
+      harness.sync();
+      harness.fire("pointerdown", {
+        type: "pointerdown",
+        button: 0,
+        pointerId: 1,
+        clientX: 8,
+        clientY: 8,
+        target: harness.trigger,
+      });
+      harness.fire("pointerup", {
+        type: "pointerup",
+        button: 0,
+        pointerId: 1,
+        clientX: 9,
+        clientY: 8,
+        target: harness.trigger,
+      });
+      assert.equal(harness.blurCount, 1);
+      harness.setTranslate("80px");
+      harness.sync();
+      assert.equal(harness.blurCount, 1);
+
+      const show = releaseElement({ tag: "button", "aria-label": "Show right panel" });
+      harness.fire("pointerdown", {
+        type: "pointerdown",
+        button: 0,
+        pointerId: 2,
+        clientX: 20,
+        clientY: 20,
+        target: show,
+      });
+      harness.fire("pointerup", {
+        type: "pointerup",
+        button: 0,
+        pointerId: 2,
+        clientX: 21,
+        clientY: 20,
+        target: show,
+      });
+      assert.equal(harness.blurCount, 1);
+    } finally {
+      harness.stop();
+    }
+  });
+});
 
 describe("sidebarFingerRelease", () => {
   const rest = { side: "rest" as const, closeSent: false };
