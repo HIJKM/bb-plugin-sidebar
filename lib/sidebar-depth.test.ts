@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  applyChatDim,
   applyChatScreen,
   applyRightDepth,
   applySidebarDepth,
@@ -50,6 +51,7 @@ describe("rightPanelDepthProgress", () => {
 describe("rightShelfProgress", () => {
   it("maps a leftward inset translate onto the shelf width", () => {
     assert.equal(rightShelfProgress(0, 320), 0);
+    assert.equal(rightShelfProgress(160, 320), 0);
     assert.equal(rightShelfProgress(-160, 320), 0.5);
     assert.equal(rightShelfProgress(-320, 320), 1);
   });
@@ -173,6 +175,29 @@ describe("readRightShelfDepth", () => {
   });
 });
 
+describe("applyChatDim", () => {
+  it("darkens the chat while the mobile shelf is open and clears it when shut", () => {
+    const inset = {
+      dataset: {} as Record<string, string | undefined>,
+      style: {
+        props: new Map<string, string>(),
+        setProperty(name: string, value: string) {
+          this.props.set(name, value);
+        },
+        removeProperty(name: string) {
+          this.props.delete(name);
+        },
+      },
+    };
+    applyChatDim(inset as unknown as HTMLElement, 0.5);
+    assert.equal(inset.dataset.bbMotionChatDim, "");
+    assert.equal(inset.style.props.get("--bb-motion-chat-dim"), "0.5");
+    applyChatDim(inset as unknown as HTMLElement, 0);
+    assert.equal(inset.dataset.bbMotionChatDim, undefined);
+    assert.equal(inset.style.props.get("--bb-motion-chat-dim"), undefined);
+  });
+});
+
 describe("applyRightDepth", () => {
   it("drops the right pin when the panel is being dragged", () => {
     const panel = {
@@ -201,6 +226,8 @@ describe("applyRightDepth", () => {
       },
     };
     applyRightDepth(panel as unknown as HTMLElement, 1, true);
+    assert.equal(panel.dataset.bbMotionSettled, "");
+    applyRightDepth(panel as unknown as HTMLElement, 0.9, true);
     assert.equal(panel.dataset.bbMotionSettled, "");
     applyRightDepth(panel as unknown as HTMLElement, 0.4, true);
     assert.equal(panel.dataset.bbMotionSettled, undefined);
@@ -286,7 +313,12 @@ function assertSlideInFromHalfway(css: string): void {
   );
   assert.match(
     css,
-    /\[data-testid="secondary-panel-shelf"\]:not\(\[data-bb-motion-settled\]\) \{[^}]*translateX\(calc\(\(1 - var\(--bb-motion-right-depth\)\) \* 50%\)\)/,
+    /@media \(max-width: 767px\) \{[^]*\[data-testid="secondary-panel-shelf"\]:not\(\[data-bb-motion-settled\]\) \{\s*transform: translateX\(calc\(\(1 - min\(var\(--bb-motion-right-depth\), 0\.75\) \/ 0\.75\) \* 100%\)\);/,
+  );
+  assert.doesNotMatch(css, /\[data-sidebar="inset"\]\[data-panel-shelf\]\s*\{[^}]*transition:\s*translate/);
+  assert.match(
+    css,
+    /@media \(max-width: 767px\) \{[^]*\[data-sidebar="inset"\]\[data-bb-motion-chat-dim\] \{[^}]*brightness\(calc\(1 - var\(--bb-motion-chat-dim\) \* 0\.45\)\)[^}]*translateX\(calc\(var\(--bb-motion-chat-dim\) \* 50%\)\)/,
   );
   assert.doesNotMatch(css.match(/\[data-testid="secondary-panel-shelf"\] \{[^}]*\}/)?.[0] ?? "", /transform:/);
   assert.doesNotMatch(css, /z-index:\s*35/);
@@ -306,7 +338,11 @@ function assertSlideInFromHalfway(css: string): void {
   );
   assert.match(
     css,
-    /@media \(max-width: 767px\) \{[^]*\[data-testid="secondary-panel-shelf"\] \{\s*background-color: var\(--sidebar\);/,
+    /@media \(max-width: 767px\) \{[^]*\[data-testid="secondary-panel-shelf"\] \{\s*background-color: var\(--sidebar\);[^}]*border-top-left-radius: 48px;\s*border-bottom-left-radius: 48px;\s*corner-shape: squircle;\s*border-left-color: transparent;/,
+  );
+  assert.match(
+    css,
+    /@media \(max-width: 767px\) \{[^]*\[data-sidebar="inset"\]\[data-panel-shelf="shelf"\],\s*\[data-sidebar="inset"\]\[data-panel-shelf="full"\] \{\s*border-top-right-radius: 0;\s*border-bottom-right-radius: 0;\s*box-shadow: 67px 0 0 0 var\(--background\);/,
   );
 }
 

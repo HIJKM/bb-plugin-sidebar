@@ -5,8 +5,11 @@ const PARKED = "liteSidebarParked";
 const RIGHT_PARKED = "bbMotionRightParked";
 const RIGHT_PIN = "bbMotionPin";
 const RIGHT_SETTLED = "bbMotionSettled";
+const CHAT_DIM = "bbMotionChatDim";
+const CHAT_DIM_VAR = "--bb-motion-chat-dim";
 const SCREEN = "bbMotionScreen";
 const SCREEN_MOVE_PX = 1;
+const RIGHT_HOLD = 0.75;
 const SLIDE_MS = 720;
 const SLIDE_EASE = "cubic-bezier(0.32, 0.72, 0, 1)";
 const RIGHT_PANEL = "[data-panel] > aside";
@@ -49,15 +52,9 @@ ${RIGHT_SHELF} {
   ${RIGHT_DEPTH_VAR}: 1;
   ${RIGHT_DEPTH_LOOK}
 }
-${RIGHT_SHELF}:not([data-bb-motion-settled]) {
-  transform: translateX(calc((1 - var(${RIGHT_DEPTH_VAR})) * 50%));
-}
 ${RIGHT_SHELF}[data-state="closed"] {
   visibility: hidden !important;
   transition: visibility 0s linear ${SLIDE_MS}ms !important;
-}
-[data-sidebar="inset"][data-panel-shelf] {
-  transition: translate ${SLIDE_MS}ms ${SLIDE_EASE};
 }
 @media (max-width: 767px) {
   [data-sidebar="inset"][data-bb-motion-screen] {
@@ -65,19 +62,39 @@ ${RIGHT_SHELF}[data-state="closed"] {
     overflow: clip;
     box-shadow: -12px 0 24px rgb(0 0 0 / 0.10);
   }
+  [data-sidebar="inset"][data-panel-shelf="shelf"],
+  [data-sidebar="inset"][data-panel-shelf="full"] {
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+    box-shadow: 67px 0 0 0 var(--background);
+  }
   [data-sidebar="panel"][data-vaul-drawer-direction="left"] {
     border-right-color: transparent;
     box-shadow: 67px 0 0 0 var(--sidebar);
   }
   [data-testid="secondary-panel-shelf"] {
     background-color: var(--sidebar);
+    z-index: 40 !important;
+    border-top-left-radius: 48px;
+    border-bottom-left-radius: 48px;
+    corner-shape: squircle;
+    border-left-color: transparent;
+    overflow: clip;
+  }
+  [data-testid="secondary-panel-shelf"]:not([data-bb-motion-settled]) {
+    transform: translateX(calc((1 - min(var(${RIGHT_DEPTH_VAR}), 0.75) / 0.75) * 100%));
+  }
+  [data-sidebar="inset"][data-bb-motion-chat-dim] {
+    filter: brightness(calc(1 - var(--bb-motion-chat-dim) * 0.45));
+    transform: translateX(calc(var(--bb-motion-chat-dim) * 50%));
   }
 }
 @media (prefers-reduced-motion: reduce) {
   [data-sidebar="gap"],
   [data-sidebar="panel"],
   ${RIGHT_PANEL},
-  ${RIGHT_SHELF} {
+  ${RIGHT_SHELF},
+  [data-sidebar="inset"][data-bb-motion-chat-dim] {
     filter: none !important;
     opacity: 1 !important;
     transform: none !important;
@@ -105,8 +122,8 @@ export function rightPanelDepthProgress(
 }
 
 export function rightShelfProgress(translateX: number, width: number): number {
-  if (width <= 0) return 0;
-  return clamp(Math.abs(translateX) / width);
+  if (width <= 0 || translateX >= 0) return 0;
+  return clamp(-translateX / width);
 }
 
 export function mobileShelfProgress(translateX: number, width: number): number {
@@ -397,6 +414,17 @@ export function readSidebarDepth(doc: Document, panel: HTMLElement): number {
   return sidebarDepthProgress(panel.getBoundingClientRect());
 }
 
+export function applyChatDim(inset: HTMLElement, progress: number): void {
+  const next = clamp(progress);
+  if (next <= 0.012) {
+    inset.style.removeProperty?.(CHAT_DIM_VAR);
+    delete inset.dataset[CHAT_DIM];
+    return;
+  }
+  inset.dataset[CHAT_DIM] = "";
+  inset.style.setProperty(CHAT_DIM_VAR, String(next));
+}
+
 export function applyRightDepth(panel: HTMLElement, progress: number, pin: boolean): void {
   const next = clamp(progress);
   panel.style.setProperty(RIGHT_DEPTH_VAR, String(next));
@@ -404,8 +432,11 @@ export function applyRightDepth(panel: HTMLElement, progress: number, pin: boole
   else delete panel.dataset[RIGHT_PIN];
   if (next <= 0.012) panel.dataset[RIGHT_PARKED] = "";
   else delete panel.dataset[RIGHT_PARKED];
-  // A resting filter or transform freezes the native browser view and the terminal WebGL canvas.
-  if (next >= 0.988) panel.dataset[RIGHT_SETTLED] = "";
+  // A resting filter or transform reloads the native browser view and the terminal WebGL canvas.
+  // Once open, keep the transform off until the drag passes the host's dismiss line.
+  const wasSettled = panel.dataset[RIGHT_SETTLED] !== undefined;
+  const settled = wasSettled ? next > RIGHT_HOLD : next >= 0.988;
+  if (settled) panel.dataset[RIGHT_SETTLED] = "";
   else delete panel.dataset[RIGHT_SETTLED];
 }
 
@@ -443,10 +474,17 @@ export function syncSidebarDepth(doc: Document): number {
     applyRightDepth(aside, readRightDepth(aside), pin);
     count += 1;
   });
+  let shelfProgress = 0;
   doc.querySelectorAll<HTMLElement>(RIGHT_SHELF).forEach((shelf) => {
-    applyRightDepth(shelf, readRightShelfDepth(doc, shelf), false);
+    const progress = readRightShelfDepth(doc, shelf);
+    shelfProgress = Math.max(shelfProgress, progress);
+    applyRightDepth(shelf, progress, false);
     count += 1;
   });
+  if (typeof doc.querySelector === "function") {
+    const inset = doc.querySelector<HTMLElement>('[data-sidebar="inset"]');
+    if (inset !== null) applyChatDim(inset, isCompactViewport(doc) ? shelfProgress : 0);
+  }
   return count;
 }
 
