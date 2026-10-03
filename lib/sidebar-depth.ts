@@ -70,6 +70,10 @@ ${RIGHT_SHELF}[data-state="closed"] {
     border-radius: 55px;
     overflow: clip;
   }
+  [data-sidebar="panel"][data-vaul-drawer-direction="left"] {
+    border-right-color: transparent;
+    box-shadow: 67px 0 0 0 var(--sidebar);
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   [data-sidebar="gap"],

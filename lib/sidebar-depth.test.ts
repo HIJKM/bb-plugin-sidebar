@@ -236,6 +236,10 @@ function assertSlideInFromHalfway(css: string): void {
     css,
     /@media \(max-width: 767px\) \{\s*\[data-sidebar="inset"\]\[data-bb-motion-screen\] \{\s*border-radius: 55px;\s*overflow: clip;/,
   );
+  assert.match(
+    css,
+    /@media \(max-width: 767px\) \{[^]*\[data-sidebar="panel"\]\[data-vaul-drawer-direction="left"\] \{\s*border-right-color: transparent;\s*box-shadow: 67px 0 0 0 var\(--sidebar\);/,
+  );
 }
 
 describe("syncSidebarDepth chat screen", () => {
