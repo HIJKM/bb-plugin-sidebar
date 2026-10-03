@@ -29,7 +29,6 @@ const SIDEBAR_DEPTH_CSS = `
   visibility: visible !important;
 }
 [data-sidebar="panel"][data-vaul-drawer-direction="left"] {
-  z-index: 35;
   transform: translateX(calc((1 - var(${DEPTH_VAR})) * -50%));
 }
 [data-sidebar="panel"][data-lite-sidebar-parked] {
@@ -51,10 +50,8 @@ ${RIGHT_PANEL}[data-bb-motion-pin] {
 ${RIGHT_PANEL}[data-bb-motion-right-parked] {
   pointer-events: none;
 }
-${RIGHT_SHELF}:not([data-state="full"]) {
-  z-index: 35 !important;
-}
 ${RIGHT_SHELF} {
+  z-index: 0 !important;
   ${RIGHT_DEPTH_VAR}: 1;
   ${RIGHT_DEPTH_LOOK}
   transform: translateX(calc((1 - var(${RIGHT_DEPTH_VAR})) * 50%));

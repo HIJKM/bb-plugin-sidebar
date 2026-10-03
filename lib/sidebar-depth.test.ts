@@ -215,16 +215,17 @@ function assertSlideInFromHalfway(css: string): void {
   assert.doesNotMatch(css, /opacity: calc\(0\.16/);
   assert.match(
     css,
-    /\[data-sidebar="panel"\]\[data-vaul-drawer-direction="left"\] \{[^}]*z-index: 35;[^}]*translateX\(calc\(\(1 - var\(--lite-sidebar-depth\)\) \* -50%\)\)/,
+    /\[data-sidebar="panel"\]\[data-vaul-drawer-direction="left"\] \{[^}]*translateX\(calc\(\(1 - var\(--lite-sidebar-depth\)\) \* -50%\)\)/,
+  );
+  assert.doesNotMatch(
+    css,
+    /\[data-sidebar="panel"\]\[data-vaul-drawer-direction="left"\] \{[^}]*z-index/,
   );
   assert.match(
     css,
-    /\[data-testid="secondary-panel-shelf"\] \{[^}]*translateX\(calc\(\(1 - var\(--bb-motion-right-depth\)\) \* 50%\)\)/,
+    /\[data-testid="secondary-panel-shelf"\] \{\s*z-index: 0 !important;[^}]*translateX\(calc\(\(1 - var\(--bb-motion-right-depth\)\) \* 50%\)\)/,
   );
-  assert.match(
-    css,
-    /\[data-testid="secondary-panel-shelf"\]:not\(\[data-state="full"\]\) \{\s*z-index: 35 !important;/,
-  );
+  assert.doesNotMatch(css, /z-index:\s*35/);
   const aside =
     css.match(/\[data-panel\] > aside \{[^}]*\}/)?.[0] ?? "";
   assert.match(aside, /brightness\(calc\(0\.7 \+ var\(--bb-motion-right-depth\) \* 0\.3\)\)/);
