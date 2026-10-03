@@ -119,10 +119,13 @@ export function mobileShelfProgress(translateX: number, width: number): number {
   return clamp(translateX / width);
 }
 
-export function readTranslateX(style: { translate?: string; transform?: string }): number {
+export function readTranslateX(
+  style: { translate?: string; transform?: string },
+  referenceWidth = 0,
+): number {
   const translate = style.translate ?? "";
   if (translate !== "" && translate !== "none") {
-    return Number.parseFloat(translate) || 0;
+    return parseTranslateToken(translate.trim().split(/\s+/)[0] ?? "", referenceWidth);
   }
   const transform = style.transform ?? "";
   if (transform === "" || transform === "none") return 0;
@@ -192,7 +195,7 @@ export function readRightShelfDepth(doc: Document, shelf: HTMLElement): number {
     translate: inset.style.translate,
     transform: inset.style.transform,
   };
-  return rightShelfProgress(readTranslateX(style), width);
+  return rightShelfProgress(readTranslateX(style, inset.getBoundingClientRect().width), width);
 }
 
 export function syncSidebarDepth(doc: Document): number {
@@ -325,6 +328,14 @@ function snapshot(doc: Document): string {
     })
     .join("|");
   return `${left}#${right}`;
+}
+
+function parseTranslateToken(token: string, referenceWidth: number): number {
+  if (token.endsWith("%")) {
+    const percent = Number.parseFloat(token);
+    return Number.isFinite(percent) ? (percent / 100) * referenceWidth : 0;
+  }
+  return Number.parseFloat(token) || 0;
 }
 
 function prefersReducedMotion(doc: Document): boolean {

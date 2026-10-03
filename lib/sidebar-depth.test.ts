@@ -6,6 +6,7 @@ import {
   injectSidebarDepth,
   mobileShelfProgress,
   readRightDepth,
+  readRightShelfDepth,
   readSidebarDepth,
   readTranslateX,
   rightPanelDepthProgress,
@@ -52,6 +53,11 @@ describe("readTranslateX", () => {
     assert.equal(readTranslateX({ translate: "120px" }), 120);
     assert.equal(readTranslateX({ transform: "matrix(1, 0, 0, 1, 80, 0)" }), 80);
     assert.equal(readTranslateX({ transform: "none" }), 0);
+  });
+
+  it("resolves a percentage against the element that is translating", () => {
+    assert.equal(readTranslateX({ translate: "-100%" }, 390), -390);
+    assert.equal(readTranslateX({ translate: "-50% 0px" }, 390), -195);
   });
 });
 
@@ -113,6 +119,42 @@ describe("readRightDepth", () => {
     assert.equal(aside.dataset.bbMotionPin, "");
     assert.equal(readRightDepth(aside as unknown as HTMLElement), 0.5);
     assert.equal(aside.style.props.get("--bb-motion-right-depth"), "0.5");
+  });
+});
+
+describe("readRightShelfDepth", () => {
+  function shelfDoc(translate: string, insetWidth: number, shelfWidth: number) {
+    const inset = {
+      style: { translate: "", transform: "" },
+      getBoundingClientRect: () => ({ width: insetWidth }),
+    };
+    const shelf = {
+      getAttribute: () => "full",
+      getBoundingClientRect: () => ({ width: shelfWidth }),
+    };
+    const doc = {
+      querySelector: () => inset,
+      defaultView: {
+        getComputedStyle: () => ({ translate, transform: "none" }),
+      },
+    };
+    return { doc, shelf };
+  }
+
+  it("opens fully when the mobile full shelf translate is -100%", () => {
+    const { doc, shelf } = shelfDoc("-100%", 390, 390);
+    assert.equal(
+      readRightShelfDepth(doc as unknown as Document, shelf as unknown as HTMLElement),
+      1,
+    );
+  });
+
+  it("resolves a percentage against the inset width", () => {
+    const { doc, shelf } = shelfDoc("-50%", 200, 400);
+    assert.equal(
+      readRightShelfDepth(doc as unknown as Document, shelf as unknown as HTMLElement),
+      0.25,
+    );
   });
 });
 
