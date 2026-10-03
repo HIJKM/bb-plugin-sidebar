@@ -96,6 +96,10 @@ ${RIGHT_SHELF}[data-state="closed"] {
 }
 `;
 
+export function keepWatchingSlide(idleMs: number): boolean {
+  return idleMs < SLIDE_MS;
+}
+
 export function sidebarDepthProgress(box: { left: number; width: number }): number {
   if (box.width <= 0) return 0;
   return clamp((box.left + box.width) / box.width);
@@ -245,8 +249,9 @@ function trackSidebarDepth(doc: Document): () => void {
   }
 
   let frame = 0;
-  let still = 0;
+  let idleFrom = 0;
   let last = "";
+  const now = (): number => view?.performance?.now?.() ?? 0;
   let resize: ResizeObserver | null = null;
   const seen = new WeakSet<Element>();
   const watch = (node: Element | null): void => {
@@ -262,22 +267,31 @@ function trackSidebarDepth(doc: Document): () => void {
     });
     doc.querySelectorAll(RIGHT_SHELF).forEach(watch);
   };
-  const tick = (): void => {
+  const tick = (time: number): void => {
     watchAll();
     const next = snapshot(doc);
     if (next !== last) {
       last = next;
-      still = 0;
+      idleFrom = time;
       syncSidebarDepth(doc);
-    } else {
-      still += 1;
     }
-    if (still < 10) frame = raf(tick);
+    if (keepWatchingSlide(time - idleFrom)) frame = raf(tick);
     else frame = 0;
   };
   const kick = (): void => {
-    still = 0;
+    idleFrom = now();
     if (frame === 0) frame = raf(tick);
+  };
+  const followSlide = (event: Event): void => {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    if (
+      target.matches(
+        '[data-sidebar="inset"], [data-sidebar="panel"], [data-panel] > aside, [data-testid="secondary-panel-shelf"]',
+      )
+    ) {
+      kick();
+    }
   };
   resize = typeof ResizeObserver === "function" ? new ResizeObserver(kick) : null;
 
@@ -300,6 +314,8 @@ function trackSidebarDepth(doc: Document): () => void {
   view?.addEventListener("pointermove", kick, true);
   view?.addEventListener("wheel", kick, { capture: true, passive: true });
   view?.addEventListener("resize", kick);
+  view?.addEventListener("transitionrun", followSlide, true);
+  view?.addEventListener("transitionend", followSlide, true);
 
   return () => {
     if (frame !== 0) cancel?.(frame);
@@ -309,6 +325,8 @@ function trackSidebarDepth(doc: Document): () => void {
     view?.removeEventListener("pointermove", kick, true);
     view?.removeEventListener("wheel", kick, true);
     view?.removeEventListener("resize", kick);
+    view?.removeEventListener("transitionrun", followSlide, true);
+    view?.removeEventListener("transitionend", followSlide, true);
   };
 }
 

@@ -9,11 +9,20 @@ import {
   readRightShelfDepth,
   readSidebarDepth,
   readTranslateX,
+  keepWatchingSlide,
   rightPanelDepthProgress,
   rightShelfProgress,
   sidebarDepthProgress,
   syncSidebarDepth,
 } from "./sidebar-depth.ts";
+
+describe("keepWatchingSlide", () => {
+  it("keeps sampling through the slide instead of the first still frames", () => {
+    assert.equal(keepWatchingSlide(160), true);
+    assert.equal(keepWatchingSlide(719), true);
+    assert.equal(keepWatchingSlide(720), false);
+  });
+});
 
 describe("sidebarDepthProgress", () => {
   it("follows how much of the panel is still on screen", () => {
