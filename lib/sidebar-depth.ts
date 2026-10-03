@@ -155,6 +155,56 @@ export function readTranslateX(
   return 0;
 }
 
+export type SidebarSide = "left" | "right" | "rest";
+export type SidebarHaptic = "open" | "close";
+export type SidebarPhase = { side: SidebarSide; closeSent: boolean };
+
+export function readSidebarSide(sample: {
+  translateX: number;
+  sidebarShelf: string | null;
+  panelShelf: string | null;
+}): SidebarSide {
+  if (sample.translateX > SCREEN_MOVE_PX) return "left";
+  if (sample.translateX < -SCREEN_MOVE_PX) return "right";
+  if (sample.sidebarShelf === "open") return "left";
+  if (sample.panelShelf === "shelf" || sample.panelShelf === "full") return "right";
+  return "rest";
+}
+
+export function nextSidebarPhase(
+  phase: SidebarPhase,
+  sample: { translateX: number; sidebarShelf: string | null; panelShelf: string | null },
+): { phase: SidebarPhase; haptics: SidebarHaptic[] } {
+  const motion: SidebarSide =
+    sample.translateX > SCREEN_MOVE_PX ? "left" : sample.translateX < -SCREEN_MOVE_PX ? "right" : "rest";
+  const attr: SidebarSide =
+    sample.sidebarShelf === "open"
+      ? "left"
+      : sample.panelShelf === "shelf" || sample.panelShelf === "full"
+        ? "right"
+        : "rest";
+  const visible = readSidebarSide(sample);
+  if (phase.side === "rest" && visible !== "rest") {
+    return { phase: { side: visible, closeSent: false }, haptics: ["open"] };
+  }
+  if (phase.side !== "rest" && attr !== phase.side && motion === phase.side && !phase.closeSent) {
+    return { phase: { side: phase.side, closeSent: true }, haptics: ["close"] };
+  }
+  if (phase.closeSent && visible === "rest") {
+    return { phase: { side: "rest", closeSent: false }, haptics: [] };
+  }
+  if (phase.side !== "rest" && visible === "rest" && !phase.closeSent) {
+    return { phase: { side: "rest", closeSent: false }, haptics: ["close"] };
+  }
+  if (phase.side !== "rest" && visible !== "rest" && visible !== phase.side) {
+    return {
+      phase: { side: visible, closeSent: false },
+      haptics: phase.closeSent ? ["open"] : ["close", "open"],
+    };
+  }
+  return { phase, haptics: [] };
+}
+
 export function applyChatScreen(inset: HTMLElement, translateX: number): "push" | null {
   const wasOn = inset.dataset[SCREEN] !== undefined;
   const shelf = inset.getAttribute("data-sidebar-shelf");
@@ -362,6 +412,7 @@ function trackSidebarDepth(doc: Document): () => void {
 
 function clearChatScreen(doc: Document): void {
   chatScreenPrimed = false;
+  sidebarPhase = { side: "rest", closeSent: false };
   if (typeof doc.querySelector !== "function") return;
   const inset = doc.querySelector<HTMLElement>('[data-sidebar="inset"]');
   if (inset !== null) delete inset.dataset[SCREEN];
@@ -387,6 +438,7 @@ function snapshot(doc: Document): string {
 }
 
 let chatScreenPrimed = false;
+let sidebarPhase: SidebarPhase = { side: "rest", closeSent: false };
 
 function syncChatScreen(doc: Document): void {
   if (typeof doc.querySelector !== "function") return;
@@ -394,6 +446,7 @@ function syncChatScreen(doc: Document): void {
   if (inset === null) return;
   if (prefersReducedMotion(doc)) {
     delete inset.dataset[SCREEN];
+    sidebarPhase = { side: "rest", closeSent: false };
     return;
   }
   const style = doc.defaultView?.getComputedStyle?.(inset) ?? {
@@ -401,12 +454,23 @@ function syncChatScreen(doc: Document): void {
     transform: inset.style.transform,
   };
   const width = inset.getBoundingClientRect?.().width ?? 0;
-  const edge = applyChatScreen(inset, readTranslateX(style, width));
+  const translateX = readTranslateX(style, width);
+  applyChatScreen(inset, translateX);
+  const sample = {
+    translateX,
+    sidebarShelf: inset.getAttribute("data-sidebar-shelf"),
+    panelShelf: inset.getAttribute("data-panel-shelf"),
+  };
   if (!chatScreenPrimed) {
     chatScreenPrimed = true;
+    sidebarPhase = { side: readSidebarSide(sample), closeSent: false };
     return;
   }
-  if (edge === "push") postSlideHaptic(readNativeBridge(doc));
+  const step = nextSidebarPhase(sidebarPhase, sample);
+  sidebarPhase = step.phase;
+  if (step.haptics.length === 0) return;
+  const native = readNativeBridge(doc);
+  for (const _haptic of step.haptics) postSlideHaptic(native);
 }
 
 function readNativeBridge(doc: Document): {

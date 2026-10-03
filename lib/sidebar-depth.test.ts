@@ -6,6 +6,7 @@ import {
   applySidebarDepth,
   injectSidebarDepth,
   mobileShelfProgress,
+  nextSidebarPhase,
   postSlideHaptic,
   readRightDepth,
   readRightShelfDepth,
@@ -270,9 +271,56 @@ describe("syncSidebarDepth chat screen", () => {
     assert.deepEqual(sent, []);
     translate = "0px";
     syncSidebarDepth(doc as unknown as Document);
+    assert.deepEqual(sent, [{ type: "haptic", kind: "impact-light" }]);
     translate = "80px";
     syncSidebarDepth(doc as unknown as Document);
-    assert.deepEqual(sent, [{ type: "haptic", kind: "impact-light" }]);
+    assert.equal(sent.length, 2);
+    translate = "-80px";
+    syncSidebarDepth(doc as unknown as Document);
+    assert.equal(sent.length, 4);
+    translate = "0px";
+    syncSidebarDepth(doc as unknown as Document);
+    assert.equal(sent.length, 5);
+  });
+});
+
+describe("nextSidebarPhase", () => {
+  const rest = { side: "rest" as const, closeSent: false };
+
+  it("pulses when either side opens and when it closes", () => {
+    const leftOpen = nextSidebarPhase(rest, {
+      translateX: 40,
+      sidebarShelf: null,
+      panelShelf: "closed",
+    });
+    assert.deepEqual(leftOpen.haptics, ["open"]);
+    const leftClose = nextSidebarPhase(leftOpen.phase, {
+      translateX: 0,
+      sidebarShelf: "closed",
+      panelShelf: "closed",
+    });
+    assert.deepEqual(leftClose.haptics, ["close"]);
+
+    const rightOpen = nextSidebarPhase(rest, {
+      translateX: 0,
+      sidebarShelf: "closed",
+      panelShelf: "shelf",
+    });
+    assert.deepEqual(rightOpen.haptics, ["open"]);
+    assert.equal(rightOpen.phase.side, "right");
+    const rightClose = nextSidebarPhase(rightOpen.phase, {
+      translateX: -200,
+      sidebarShelf: null,
+      panelShelf: "closed",
+    });
+    assert.deepEqual(rightClose.haptics, ["close"]);
+    const rightSettled = nextSidebarPhase(rightClose.phase, {
+      translateX: 0,
+      sidebarShelf: null,
+      panelShelf: "closed",
+    });
+    assert.deepEqual(rightSettled.haptics, []);
+    assert.equal(rightSettled.phase.side, "rest");
   });
 });
 
