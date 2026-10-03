@@ -16,6 +16,10 @@ const RIGHT_PANEL = "[data-panel] > aside";
 const RIGHT_SHELF = '[data-testid="secondary-panel-shelf"]';
 const RIGHT_TAB_ROOT =
   '[data-sidebar-split-tab-group], [aria-label="Right panel views"], [data-testid="mobile-panel-tab-pager"], [data-testid="secondary-panel-tab-strip"]';
+const TAB_VIEWPORT = '[data-testid="mobile-panel-tab-viewport"]';
+const TAB_PAGER = '[data-testid="mobile-panel-tab-pager"]';
+const TAB_SWIPE_PX = 30;
+const TAB_SWIPE_QUIET_MS = 500;
 
 const RIGHT_DEPTH_LOOK = `
   opacity: 1;
@@ -251,10 +255,25 @@ const NO_FINGER_HAPTIC: FingerHaptic = { haptics: [], suppress: [], settle: null
 export function isRightPanelTabPress(target: EventTarget | null): boolean {
   const element = asElement(target);
   if (element === null) return false;
-  if (element.closest("[data-tab-pill-close]") !== null) return false;
   const button = element.closest("button");
-  if (button === null || button.getAttribute("aria-pressed") === null) return false;
-  return button.closest(RIGHT_TAB_ROOT) !== null;
+  if (button === null || button.getAttribute("disabled") !== null) return false;
+  if (button.closest(RIGHT_TAB_ROOT) === null) return false;
+  if (button.getAttribute("data-tab-pill-close") !== null) return true;
+  if (button.getAttribute("aria-pressed") !== null) return true;
+  if (button.getAttribute("data-panel-new-tab") !== null) return true;
+  const label = button.getAttribute("aria-label");
+  return label === "Previous tab" || label === "Next tab" || label?.startsWith("Close ") === true;
+}
+
+export function rightPanelTabSwipe(
+  start: { x: number; y: number } | null,
+  end: { x: number; y: number } | null,
+): "previous" | "next" | null {
+  if (start === null || end === null) return null;
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  if (Math.abs(dx) < TAB_SWIPE_PX || Math.abs(dx) <= Math.abs(dy)) return null;
+  return dx < 0 ? "next" : "previous";
 }
 
 export function readReleaseTarget(target: EventTarget | null): ReleaseTarget {
@@ -592,14 +611,54 @@ function trackSidebarDepth(doc: Document): () => void {
     subtree: true,
   });
   watchAll();
-  const buzzTab = (event: Event): void => {
-    if (!isRightPanelTabPress(event.target)) return;
+  let tabSwipe: { x: number; y: number; pager: Element } | null = null;
+  let tabSwipeQuietUntil = 0;
+  let tabPressAt = 0;
+  const buzzTabPress = (target: EventTarget | null): void => {
+    const time = now();
+    if (time < tabSwipeQuietUntil || time - tabPressAt < TAB_SWIPE_QUIET_MS) return;
+    if (!isRightPanelTabPress(target)) return;
+    tabPressAt = time;
     postSlideHaptic(readNativeBridge(doc));
+  };
+  const buzzTab = (event: Event): void => {
+    buzzTabPress(event.target);
+  };
+  const tabTouchStart = (event: Event): void => {
+    const touches = touchPoints(event, "touches");
+    const element = asElement(event.target);
+    const viewport = element?.closest(TAB_VIEWPORT) ?? null;
+    const touch = touches?.[0];
+    if (touch === undefined || viewport === null || touches.length !== 1) {
+      tabSwipe = null;
+      return;
+    }
+    tabSwipe = { x: touch.clientX, y: touch.clientY, pager: viewport.closest(TAB_PAGER) ?? viewport };
+  };
+  const tabTouchEnd = (event: Event): void => {
+    const start = tabSwipe;
+    tabSwipe = null;
+    const touch = touchPoints(event, "changedTouches")?.[0];
+    if (start === null || touch === undefined) return;
+    const direction = rightPanelTabSwipe(start, { x: touch.clientX, y: touch.clientY });
+    if (direction === null) return;
+    tabSwipeQuietUntil = now() + TAB_SWIPE_QUIET_MS;
+    const label = direction === "next" ? "Next tab" : "Previous tab";
+    const control = start.pager.querySelector?.(`button[aria-label="${label}"]`);
+    if (control === null || control === undefined || control.getAttribute("disabled") !== null) return;
+    postSlideHaptic(readNativeBridge(doc));
+  };
+  const tabTouchCancel = (): void => {
+    tabSwipe = null;
   };
   const downFinger = (event: Event): void => trackFingerDown(doc, event);
   const moveFinger = (event: Event): void => trackFingerMove(doc, event);
   const upFinger = (event: Event): void => trackFingerUp(doc, event);
   view?.addEventListener("click", buzzTab, true);
+  view?.addEventListener("pointerup", buzzTab, true);
+  view?.addEventListener("touchstart", tabTouchStart, true);
+  view?.addEventListener("touchend", tabTouchEnd, true);
+  view?.addEventListener("touchcancel", tabTouchCancel, true);
   view?.addEventListener("pointerdown", kick, true);
   view?.addEventListener("pointermove", kick, true);
   view?.addEventListener("pointerdown", downFinger, true);
@@ -621,6 +680,10 @@ function trackSidebarDepth(doc: Document): () => void {
     mutations.disconnect();
     resize?.disconnect();
     view?.removeEventListener("click", buzzTab, true);
+    view?.removeEventListener("pointerup", buzzTab, true);
+    view?.removeEventListener("touchstart", tabTouchStart, true);
+    view?.removeEventListener("touchend", tabTouchEnd, true);
+    view?.removeEventListener("touchcancel", tabTouchCancel, true);
     view?.removeEventListener("pointerdown", kick, true);
     view?.removeEventListener("pointermove", kick, true);
     view?.removeEventListener("pointerdown", downFinger, true);
@@ -914,6 +977,15 @@ export function isSidebarMotionTarget(target: EventTarget | null): boolean {
   if (element.matches(MOTION_SHELL)) return true;
   const parent = element.parentElement;
   return parent?.matches("[data-panel]") === true && element.tagName === "ASIDE";
+}
+
+function touchPoints(
+  event: Event,
+  key: "touches" | "changedTouches",
+): ArrayLike<{ clientX: number; clientY: number }> | null {
+  if (!(key in event)) return null;
+  const points = (event as Event & Record<"touches" | "changedTouches", ArrayLike<{ clientX: number; clientY: number }> | undefined>)[key];
+  return points ?? null;
 }
 
 function asElement(target: EventTarget | null): Element | null {

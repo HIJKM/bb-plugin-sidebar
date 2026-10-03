@@ -11,6 +11,7 @@ import {
   nextSidebarPhase,
   postSlideHaptic,
   isRightPanelTabPress,
+  rightPanelTabSwipe,
   readReleaseTarget,
   sidebarFingerRelease,
   readRightDepth,
@@ -858,14 +859,30 @@ describe("isRightPanelTabPress", () => {
     const group = releaseElement({ "aria-label": "Right panel views" });
     const tab = releaseElement({ tag: "button", "aria-pressed": "false" }, group);
     const label = releaseElement({}, tab);
-    const close = releaseElement({ tag: "button", "data-tab-pill-close": "" }, tab);
+    const close = releaseElement({ tag: "button", "aria-label": "Close Notes", "data-tab-pill-close": "" }, tab);
+    const outsideClose = releaseElement({ tag: "button", "data-tab-pill-close": "" });
     const elsewhere = releaseElement({ tag: "button", "aria-pressed": "true" });
     const plus = releaseElement({ tag: "button", "data-panel-new-tab": "" }, group);
+    const previous = releaseElement({ tag: "button", "aria-label": "Previous tab" }, group);
+    const next = releaseElement({ tag: "button", "aria-label": "Next tab", disabled: "" }, group);
     assert.equal(isRightPanelTabPress(label), true);
-    assert.equal(isRightPanelTabPress(close), false);
+    assert.equal(isRightPanelTabPress(close), true);
+    assert.equal(isRightPanelTabPress(outsideClose), false);
     assert.equal(isRightPanelTabPress(elsewhere), false);
-    assert.equal(isRightPanelTabPress(plus), false);
+    assert.equal(isRightPanelTabPress(plus), true);
+    assert.equal(isRightPanelTabPress(previous), true);
+    assert.equal(isRightPanelTabPress(next), false);
     assert.equal(isRightPanelTabPress(null), false);
+  });
+});
+
+describe("rightPanelTabSwipe", () => {
+  it("names a horizontal tab change and ignores a short or vertical move", () => {
+    assert.equal(rightPanelTabSwipe({ x: 80, y: 10 }, { x: 40, y: 12 }), "next");
+    assert.equal(rightPanelTabSwipe({ x: 40, y: 10 }, { x: 80, y: 12 }), "previous");
+    assert.equal(rightPanelTabSwipe({ x: 40, y: 10 }, { x: 60, y: 12 }), null);
+    assert.equal(rightPanelTabSwipe({ x: 40, y: 10 }, { x: 80, y: 80 }), null);
+    assert.equal(rightPanelTabSwipe(null, { x: 80, y: 12 }), null);
   });
 });
 
