@@ -69,7 +69,7 @@ ${RIGHT_SHELF}[data-state="closed"] {
   [data-sidebar="inset"][data-bb-motion-screen] {
     border-radius: 55px;
     overflow: clip;
-    box-shadow: -12px 0 24px rgb(0 0 0 / 0.16);
+    box-shadow: -12px 0 24px rgb(0 0 0 / 0.10);
   }
   [data-sidebar="panel"][data-vaul-drawer-direction="left"] {
     border-right-color: transparent;
