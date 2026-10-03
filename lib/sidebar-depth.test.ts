@@ -237,7 +237,7 @@ function assertSlideInFromHalfway(css: string): void {
   assert.doesNotMatch(aside, /translateX/);
   assert.match(
     css,
-    /@media \(max-width: 767px\) \{\s*\[data-sidebar="inset"\]\[data-bb-motion-screen\] \{\s*border-radius: 55px;\s*overflow: clip;/,
+    /@media \(max-width: 767px\) \{\s*\[data-sidebar="inset"\]\[data-bb-motion-screen\] \{\s*border-radius: 55px;\s*overflow: clip;\s*box-shadow: -12px 0 24px rgb\(0 0 0 \/ 0\.16\);/,
   );
   assert.match(
     css,
