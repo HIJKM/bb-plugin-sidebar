@@ -8,6 +8,8 @@ import {
   mobileShelfProgress,
   nextSidebarPhase,
   postSlideHaptic,
+  readReleaseTarget,
+  sidebarFingerRelease,
   readRightDepth,
   readRightShelfDepth,
   readSidebarDepth,
@@ -281,6 +283,409 @@ describe("syncSidebarDepth chat screen", () => {
     translate = "0px";
     syncSidebarDepth(doc as unknown as Document);
     assert.equal(sent.length, 5);
+  });
+});
+
+type ReleaseEl = {
+  attrs: Record<string, string>;
+  parent: ReleaseEl | null;
+  closest(selector: string): ReleaseEl | null;
+  matches(selector: string): boolean;
+  getAttribute(name: string): string | null;
+};
+
+function releaseElement(attrs: Record<string, string>, parent: ReleaseEl | null = null): ReleaseEl {
+  const element: ReleaseEl = {
+    attrs,
+    parent,
+    getAttribute(name) {
+      return element.attrs[name] ?? null;
+    },
+    matches(selector) {
+      return selector.split(",").some((part) => releaseSelectorMatches(element, part.trim()));
+    },
+    closest(selector) {
+      let node: ReleaseEl | null = element;
+      while (node !== null) {
+        if (node.matches(selector)) return node;
+        node = node.parent;
+      }
+      return null;
+    },
+  };
+  return element;
+}
+
+function releaseSelectorMatches(element: ReleaseEl, selector: string): boolean {
+  if (/^[a-z]+$/.test(selector)) return element.attrs.tag === selector;
+  const attr = /^\[([^=\]]+)(?:="([^"]*)")?\]$/.exec(selector);
+  if (attr === null) return false;
+  if (attr[2] === undefined) return element.attrs[attr[1]] !== undefined;
+  return element.attrs[attr[1]] === attr[2];
+}
+
+describe("sidebar finger release", () => {
+  it("buzzes when the finger lifts and stays quiet when the slide sample catches up", () => {
+    const harness = mountFingerHarness();
+    try {
+      harness.sync();
+      assert.deepEqual(harness.sent, []);
+      harness.fire("pointerdown", {
+        type: "pointerdown",
+        button: 0,
+        pointerId: 1,
+        clientX: 8,
+        clientY: 8,
+        target: harness.trigger,
+      });
+      harness.fire("pointerup", {
+        type: "pointerup",
+        button: 0,
+        pointerId: 1,
+        clientX: 9,
+        clientY: 8,
+        target: harness.trigger,
+      });
+      assert.deepEqual(harness.sent, [{ type: "haptic", kind: "impact-light" }]);
+      harness.setTranslate("80px");
+      harness.sync();
+      assert.equal(harness.sent.length, 1);
+
+      harness.fire("pointerdown", {
+        type: "pointerdown",
+        button: 0,
+        pointerId: 2,
+        clientX: 20,
+        clientY: 20,
+        target: harness.child,
+      });
+      harness.fire("pointerup", {
+        type: "pointerup",
+        button: 0,
+        pointerId: 2,
+        clientX: 22,
+        clientY: 24,
+        target: harness.child,
+      });
+      assert.equal(harness.sent.length, 1);
+    } finally {
+      harness.stop();
+    }
+  });
+
+  it("does not buzz twice when touchend and pointerup both arrive", () => {
+    const harness = mountFingerHarness();
+    try {
+      harness.sync();
+      harness.fire("touchstart", {
+        type: "touchstart",
+        target: harness.trigger,
+        touches: [{ identifier: 3, clientX: 8, clientY: 8 }],
+      });
+      harness.fire("pointerdown", {
+        type: "pointerdown",
+        button: 0,
+        pointerId: 4,
+        clientX: 8,
+        clientY: 8,
+        target: harness.trigger,
+      });
+      harness.fire("touchend", {
+        type: "touchend",
+        target: harness.trigger,
+        changedTouches: [{ identifier: 3, clientX: 9, clientY: 8 }],
+      });
+      harness.fire("pointerup", {
+        type: "pointerup",
+        button: 0,
+        pointerId: 4,
+        clientX: 9,
+        clientY: 8,
+        target: harness.trigger,
+      });
+      assert.deepEqual(harness.sent, [{ type: "haptic", kind: "impact-light" }]);
+    } finally {
+      harness.stop();
+    }
+  });
+
+  it("stays quiet when a short edge swipe lets go before the drawer commits", () => {
+    const harness = mountFingerHarness();
+    try {
+      harness.sync();
+      harness.fire("pointerdown", {
+        type: "pointerdown",
+        button: 0,
+        pointerId: 1,
+        clientX: 40,
+        clientY: 40,
+        target: harness.insetTarget,
+      });
+      harness.setTranslate("40px");
+      harness.sync();
+      assert.deepEqual(harness.sent, []);
+      harness.fire("pointerup", {
+        type: "pointerup",
+        button: 0,
+        pointerId: 1,
+        clientX: 70,
+        clientY: 40,
+        target: harness.insetTarget,
+      });
+      assert.deepEqual(harness.sent, []);
+      harness.sync();
+      harness.setTranslate("0px");
+      harness.sync();
+      assert.deepEqual(harness.sent, []);
+    } finally {
+      harness.stop();
+    }
+  });
+
+  it("buzzes a dismiss drag when the finger lifts and skips the later close sample", () => {
+    const harness = mountFingerHarness();
+    try {
+      harness.sync();
+      harness.setTranslate("80px");
+      harness.sync();
+      assert.equal(harness.sent.length, 1);
+      harness.fire("pointerdown", {
+        type: "pointerdown",
+        button: 0,
+        pointerId: 1,
+        clientX: 220,
+        clientY: 40,
+        target: harness.child,
+      });
+      harness.fire("pointerup", {
+        type: "pointerup",
+        button: 0,
+        pointerId: 1,
+        clientX: 100,
+        clientY: 40,
+        target: harness.child,
+      });
+      assert.equal(harness.sent.length, 2);
+      harness.setTranslate("0px");
+      harness.sync();
+      assert.equal(harness.sent.length, 2);
+
+      harness.setTranslate("80px");
+      harness.sync();
+      const beforeSnap = harness.sent.length;
+      harness.fire("pointerdown", {
+        type: "pointerdown",
+        button: 0,
+        pointerId: 2,
+        clientX: 200,
+        clientY: 40,
+        target: harness.child,
+      });
+      harness.fire("pointerup", {
+        type: "pointerup",
+        button: 0,
+        pointerId: 2,
+        clientX: 180,
+        clientY: 40,
+        target: harness.child,
+      });
+      harness.sync();
+      assert.equal(harness.sent.length, beforeSnap);
+    } finally {
+      harness.stop();
+    }
+  });
+});
+
+function mountFingerHarness() {
+  const sent: unknown[] = [];
+  let translate = "0px";
+  const listeners = new Map<string, Array<(event: Event) => void>>();
+  const trigger = releaseElement({ "data-sidebar": "trigger", tag: "button" });
+  const row = releaseElement({ "data-sidebar": "panel" });
+  const child = releaseElement({}, row);
+  const insetTarget = releaseElement({ "data-sidebar": "inset" });
+  const inset = {
+    dataset: {} as Record<string, string | undefined>,
+    style: { translate: "", transform: "" },
+    getAttribute: () => null as string | null,
+    getBoundingClientRect: () => ({ width: 390, left: 0, height: 800, right: 390, top: 0, bottom: 800 }),
+  };
+  const panel = {
+    getAttribute: (name: string) => (name === "data-vaul-drawer-direction" ? "left" : null),
+    getBoundingClientRect: () => ({ width: 300, left: 0, height: 800, right: 300, top: 0, bottom: 800 }),
+    dataset: {},
+    style: { setProperty() {}, removeProperty() {} },
+  };
+  const doc = {
+    body: {},
+    defaultView: {
+      bb: { native: { post: (message: unknown) => sent.push(message), capabilities: ["haptic"] } },
+      getComputedStyle: () => ({ translate, transform: "none" }),
+      matchMedia: (query: string) => ({ matches: query.includes("max-width") }),
+      requestAnimationFrame: () => 1,
+      cancelAnimationFrame: () => {},
+      performance: { now: () => 0 },
+      addEventListener: (type: string, fn: (event: Event) => void) => {
+        const list = listeners.get(type) ?? [];
+        list.push(fn);
+        listeners.set(type, list);
+      },
+      removeEventListener: (type: string, fn: (event: Event) => void) => {
+        listeners.set(type, (listeners.get(type) ?? []).filter((item) => item !== fn));
+      },
+    },
+    getElementById: () => null,
+    createElement: () => ({ id: "", textContent: "", remove() {} }),
+    head: { append() {} },
+    querySelector: (selector: string) => {
+      if (selector === '[data-sidebar="inset"]') return inset;
+      if (selector === '[data-sidebar="panel"]') return panel;
+      return null;
+    },
+    querySelectorAll: (selector: string) => {
+      if (selector.includes("panel") && selector.includes("inset")) return [panel, inset];
+      if (selector === '[data-sidebar="panel"]') return [panel];
+      return [];
+    },
+  };
+  const previousObserver = globalThis.MutationObserver;
+  globalThis.MutationObserver = class {
+    observe() {}
+    disconnect() {}
+  } as unknown as typeof MutationObserver;
+  const stop = injectSidebarDepth(doc as unknown as Document);
+  return {
+    sent,
+    trigger,
+    child,
+    insetTarget,
+    setTranslate(next: string) {
+      translate = next;
+    },
+    sync() {
+      syncSidebarDepth(doc as unknown as Document);
+    },
+    fire(type: string, event: Record<string, unknown>) {
+      for (const fn of [...(listeners.get(type) ?? [])]) fn(event as unknown as Event);
+    },
+    stop() {
+      stop();
+      globalThis.MutationObserver = previousObserver;
+    },
+  };
+}
+
+describe("sidebarFingerRelease", () => {
+  const rest = { side: "rest" as const, closeSent: false };
+  const left = { side: "left" as const, closeSent: false };
+  const right = { side: "right" as const, closeSent: false };
+  const release = {
+    target: "left-panel" as const,
+    deltaX: 0,
+    deltaY: 0,
+    velocityX: 0,
+    width: 300,
+  };
+
+  it("commits the same open and dismiss distances the phone shell uses", () => {
+    assert.deepEqual(
+      sidebarFingerRelease(rest, { ...release, target: "left-trigger", deltaX: 1, deltaY: 2 }),
+      { haptics: ["open"], suppress: ["open"], settle: null },
+    );
+    assert.deepEqual(sidebarFingerRelease(left, { ...release, target: "left-trigger" }), {
+      haptics: ["close"],
+      suppress: ["close"],
+      settle: null,
+    });
+    assert.deepEqual(sidebarFingerRelease(right, { ...release, target: "left-trigger" }), {
+      haptics: ["close", "open"],
+      suppress: ["close", "open"],
+      settle: null,
+    });
+    assert.deepEqual(sidebarFingerRelease(rest, { ...release, target: "right-show" }), {
+      haptics: ["open"],
+      suppress: ["open"],
+      settle: null,
+    });
+    assert.deepEqual(sidebarFingerRelease(right, { ...release, target: "right-hide" }), {
+      haptics: ["close"],
+      suppress: ["close"],
+      settle: null,
+    });
+    assert.deepEqual(sidebarFingerRelease(left, { ...release, target: "left-backdrop" }), {
+      haptics: ["close"],
+      suppress: ["close"],
+      settle: null,
+    });
+    assert.deepEqual(sidebarFingerRelease(left, { ...release, deltaX: -75 }), {
+      haptics: ["close"],
+      suppress: ["close"],
+      settle: null,
+    });
+    assert.deepEqual(sidebarFingerRelease(left, { ...release, deltaX: -20 }), {
+      haptics: [],
+      suppress: [],
+      settle: null,
+    });
+    assert.deepEqual(sidebarFingerRelease(left, { ...release, deltaX: -36, velocityX: -450 }), {
+      haptics: ["close"],
+      suppress: ["close"],
+      settle: null,
+    });
+    assert.deepEqual(sidebarFingerRelease(right, { ...release, target: "right-shelf", deltaX: 75 }), {
+      haptics: ["close"],
+      suppress: ["close"],
+      settle: null,
+    });
+    assert.deepEqual(sidebarFingerRelease(rest, { ...release, target: "inset", deltaX: 99 }), {
+      haptics: ["open"],
+      suppress: ["open"],
+      settle: null,
+    });
+    assert.deepEqual(sidebarFingerRelease(rest, { ...release, target: "inset", deltaX: 36, velocityX: 450 }), {
+      haptics: ["open"],
+      suppress: ["open"],
+      settle: null,
+    });
+    assert.deepEqual(sidebarFingerRelease(rest, { ...release, target: "inset", deltaX: 30 }), {
+      haptics: [],
+      suppress: [],
+      settle: "rest",
+    });
+    assert.deepEqual(sidebarFingerRelease(rest, { ...release, target: "inset", deltaX: 30, deltaY: 40 }), {
+      haptics: [],
+      suppress: [],
+      settle: null,
+    });
+    assert.deepEqual(sidebarFingerRelease(left, { ...release, target: "other" }), {
+      haptics: [],
+      suppress: [],
+      settle: null,
+    });
+  });
+
+  it("names the control under the finger", () => {
+    const show = releaseElement({ tag: "button", "aria-label": "Show right panel" });
+    const icon = releaseElement({ "data-icon": "PanelRight" }, show);
+    const hide = releaseElement({ tag: "button", "aria-label": "Hide right panel (Mod+B)" });
+    assert.equal(readReleaseTarget(icon), "right-show");
+    assert.equal(readReleaseTarget(hide), "right-hide");
+    assert.equal(readReleaseTarget(releaseElement({ tag: "button", "data-sidebar": "trigger" })), "left-trigger");
+    assert.equal(readReleaseTarget(releaseElement({ tag: "input" })), "other");
+    assert.equal(
+      readReleaseTarget(releaseElement({}, releaseElement({ "data-sidebar": "panel" }))),
+      "left-panel",
+    );
+    assert.equal(readReleaseTarget(releaseElement({ "data-sidebar": "inset" })), "inset");
+    assert.equal(
+      readReleaseTarget(releaseElement({ "data-sidebar-mobile-backdrop": "" })),
+      "left-backdrop",
+    );
+    assert.equal(
+      readReleaseTarget(releaseElement({ "data-testid": "secondary-panel-shelf-dismiss" })),
+      "right-dismiss",
+    );
   });
 });
 
