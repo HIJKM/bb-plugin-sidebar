@@ -224,9 +224,9 @@ describe("injectSidebarDepth", () => {
     assert.equal(nodes.length, 1);
     assert.match(nodes[0].textContent, /--lite-sidebar-depth/);
     assert.match(nodes[0].textContent, /--bb-motion-right-depth/);
-    assert.doesNotMatch(
+    assert.match(
       nodes[0].textContent,
-      /opacity: calc\(0\.16 \+ var\(--bb-motion-right-depth\)/,
+      /\[data-testid="secondary-panel-shelf"\] \{\s*z-index: 0 !important;/,
     );
     assert.match(nodes[0].textContent, /720ms/);
     assert.doesNotMatch(nodes[0].textContent, /transform 420ms/);

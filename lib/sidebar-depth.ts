@@ -11,7 +11,7 @@ const RIGHT_SHELF = '[data-testid="secondary-panel-shelf"]';
 
 const RIGHT_DEPTH_TRANSFORM = `
   filter: brightness(calc(0.7 + var(${RIGHT_DEPTH_VAR}) * 0.3));
-  opacity: 1;
+  opacity: calc(0.16 + var(${RIGHT_DEPTH_VAR}) * 0.84);
   transform: perspective(1100px)
     translate3d(
       calc((1 - var(${RIGHT_DEPTH_VAR})) * 8%),
@@ -64,6 +64,7 @@ ${RIGHT_PANEL}[data-bb-motion-right-parked] {
   pointer-events: none;
 }
 ${RIGHT_SHELF} {
+  z-index: 0 !important;
   ${RIGHT_DEPTH_VAR}: 1;
   ${RIGHT_DEPTH_TRANSFORM}
 }
