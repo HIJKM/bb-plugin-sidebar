@@ -14,6 +14,8 @@ const SLIDE_MS = 720;
 const SLIDE_EASE = "cubic-bezier(0.32, 0.72, 0, 1)";
 const RIGHT_PANEL = "[data-panel] > aside";
 const RIGHT_SHELF = '[data-testid="secondary-panel-shelf"]';
+const RIGHT_TAB_ROOT =
+  '[data-sidebar-split-tab-group], [aria-label="Right panel views"], [data-testid="mobile-panel-tab-pager"], [data-testid="secondary-panel-tab-strip"]';
 
 const RIGHT_DEPTH_LOOK = `
   opacity: 1;
@@ -245,6 +247,15 @@ export type FingerHaptic = {
 };
 
 const NO_FINGER_HAPTIC: FingerHaptic = { haptics: [], suppress: [], settle: null };
+
+export function isRightPanelTabPress(target: EventTarget | null): boolean {
+  const element = asElement(target);
+  if (element === null) return false;
+  if (element.closest("[data-tab-pill-close]") !== null) return false;
+  const button = element.closest("button");
+  if (button === null || button.getAttribute("aria-pressed") === null) return false;
+  return button.closest(RIGHT_TAB_ROOT) !== null;
+}
 
 export function readReleaseTarget(target: EventTarget | null): ReleaseTarget {
   const element = asElement(target);
@@ -581,9 +592,14 @@ function trackSidebarDepth(doc: Document): () => void {
     subtree: true,
   });
   watchAll();
+  const buzzTab = (event: Event): void => {
+    if (!isRightPanelTabPress(event.target)) return;
+    postSlideHaptic(readNativeBridge(doc));
+  };
   const downFinger = (event: Event): void => trackFingerDown(doc, event);
   const moveFinger = (event: Event): void => trackFingerMove(doc, event);
   const upFinger = (event: Event): void => trackFingerUp(doc, event);
+  view?.addEventListener("click", buzzTab, true);
   view?.addEventListener("pointerdown", kick, true);
   view?.addEventListener("pointermove", kick, true);
   view?.addEventListener("pointerdown", downFinger, true);
@@ -604,6 +620,7 @@ function trackSidebarDepth(doc: Document): () => void {
     if (frame !== 0) cancel?.(frame);
     mutations.disconnect();
     resize?.disconnect();
+    view?.removeEventListener("click", buzzTab, true);
     view?.removeEventListener("pointerdown", kick, true);
     view?.removeEventListener("pointermove", kick, true);
     view?.removeEventListener("pointerdown", downFinger, true);

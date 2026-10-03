@@ -10,6 +10,7 @@ import {
   mobileShelfProgress,
   nextSidebarPhase,
   postSlideHaptic,
+  isRightPanelTabPress,
   readReleaseTarget,
   sidebarFingerRelease,
   readRightDepth,
@@ -849,6 +850,22 @@ describe("applyChatScreen", () => {
     };
     assert.equal(applyChatScreen(inset as unknown as HTMLElement, 0), "push");
     assert.equal(inset.dataset.bbMotionScreen, "");
+  });
+});
+
+describe("isRightPanelTabPress", () => {
+  it("buzzes a right-panel tab and skips close buttons and other pills", () => {
+    const group = releaseElement({ "aria-label": "Right panel views" });
+    const tab = releaseElement({ tag: "button", "aria-pressed": "false" }, group);
+    const label = releaseElement({}, tab);
+    const close = releaseElement({ tag: "button", "data-tab-pill-close": "" }, tab);
+    const elsewhere = releaseElement({ tag: "button", "aria-pressed": "true" });
+    const plus = releaseElement({ tag: "button", "data-panel-new-tab": "" }, group);
+    assert.equal(isRightPanelTabPress(label), true);
+    assert.equal(isRightPanelTabPress(close), false);
+    assert.equal(isRightPanelTabPress(elsewhere), false);
+    assert.equal(isRightPanelTabPress(plus), false);
+    assert.equal(isRightPanelTabPress(null), false);
   });
 });
 
