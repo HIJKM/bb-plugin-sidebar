@@ -74,6 +74,9 @@ ${RIGHT_SHELF}[data-state="closed"] {
     border-right-color: transparent;
     box-shadow: 67px 0 0 0 var(--sidebar);
   }
+  [data-testid="secondary-panel-shelf"] {
+    background-color: var(--sidebar);
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   [data-sidebar="gap"],

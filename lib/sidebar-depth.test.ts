@@ -240,6 +240,10 @@ function assertSlideInFromHalfway(css: string): void {
     css,
     /@media \(max-width: 767px\) \{[^]*\[data-sidebar="panel"\]\[data-vaul-drawer-direction="left"\] \{\s*border-right-color: transparent;\s*box-shadow: 67px 0 0 0 var\(--sidebar\);/,
   );
+  assert.match(
+    css,
+    /@media \(max-width: 767px\) \{[^]*\[data-testid="secondary-panel-shelf"\] \{\s*background-color: var\(--sidebar\);/,
+  );
 }
 
 describe("syncSidebarDepth chat screen", () => {
