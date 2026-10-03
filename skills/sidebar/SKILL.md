@@ -1,9 +1,9 @@
 ---
-name: bb-motion
+name: sidebar
 description: 왼쪽 사이드바와 우측 패널이 열리고 닫힐 때의 등장 모션. 스레드 목록 테마는 bb-thread-theme가 맡는다.
 ---
 
-# bb-motion
+# sidebar
 
 왼쪽 셸(`[data-sidebar="panel"]`)과 우측 패널(`[data-panel] > aside`, 좁은 화면의 secondary shelf)의 열림과 닫힘만 담당한다. 스레드 행의 색, 아이콘, 브랜치 표시는 `bb-thread-theme`다.
 
