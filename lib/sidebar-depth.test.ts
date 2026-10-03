@@ -4,6 +4,7 @@ import {
   applyChatScreen,
   applyRightDepth,
   applySidebarDepth,
+  isSidebarMotionTarget,
   injectSidebarDepth,
   mobileShelfProgress,
   nextSidebarPhase,
@@ -186,8 +187,65 @@ describe("applyRightDepth", () => {
     applyRightDepth(panel as unknown as HTMLElement, 1, false);
     assert.equal(panel.dataset.bbMotionPin, undefined);
     assert.equal(panel.dataset.bbMotionRightParked, undefined);
+    assert.equal(panel.dataset.bbMotionSettled, "");
+  });
+
+  it("drops the resting filter while a browser or terminal tab is open", () => {
+    const panel = {
+      dataset: {} as Record<string, string | undefined>,
+      style: {
+        props: new Map<string, string>(),
+        setProperty(name: string, value: string) {
+          this.props.set(name, value);
+        },
+      },
+    };
+    applyRightDepth(panel as unknown as HTMLElement, 1, true);
+    assert.equal(panel.dataset.bbMotionSettled, "");
+    applyRightDepth(panel as unknown as HTMLElement, 0.4, true);
+    assert.equal(panel.dataset.bbMotionSettled, undefined);
+    applyRightDepth(panel as unknown as HTMLElement, 0, true);
+    assert.equal(panel.dataset.bbMotionSettled, undefined);
+    assert.equal(panel.dataset.bbMotionRightParked, "");
   });
 });
+
+describe("isSidebarMotionTarget", () => {
+  it("follows the panel shell and ignores a browser or terminal inside it", () => {
+    const panel = motionTarget("DIV", { "data-panel": "" }, null);
+    const aside = motionTarget("ASIDE", {}, panel);
+    const terminal = motionTarget("DIV", {}, aside);
+    const browser = motionTarget("DIV", {}, aside);
+    assert.equal(isSidebarMotionTarget(panel as unknown as EventTarget), true);
+    assert.equal(isSidebarMotionTarget(aside as unknown as EventTarget), true);
+    assert.equal(isSidebarMotionTarget(terminal as unknown as EventTarget), false);
+    assert.equal(isSidebarMotionTarget(browser as unknown as EventTarget), false);
+  });
+});
+
+function motionTarget(
+  tag: string,
+  attrs: Record<string, string>,
+  parent: ReturnType<typeof motionTarget> | null,
+): ReturnType<typeof motionTarget> {
+  const element = {
+    tagName: tag,
+    parentElement: parent,
+    attrs,
+    matches(selector: string) {
+      return selector.split(",").some((part) => {
+        const attr = /^\[([^=\]]+)(?:="([^"]*)")?\]$/.exec(part.trim());
+        if (attr === null) return false;
+        if (attr[2] === undefined) return element.attrs[attr[1]] !== undefined;
+        return element.attrs[attr[1]] === attr[2];
+      });
+    },
+    closest() {
+      return null;
+    },
+  };
+  return element;
+}
 
 describe("syncSidebarDepth", () => {
   it("applies the current desktop rect to the panel", () => {
@@ -214,7 +272,7 @@ describe("syncSidebarDepth", () => {
 
 function assertSlideInFromHalfway(css: string): void {
   assert.match(css, /brightness\(calc\(0\.7 \+ var\(--lite-sidebar-depth\) \* 0\.3\)\)/);
-  assert.match(css, /brightness\(calc\(0\.7 \+ var\(--bb-motion-right-depth\) \* 0\.3\)\)/);
+  assert.doesNotMatch(css, /brightness\(calc\(0\.7 \+ var\(--bb-motion-right-depth\) \* 0\.3\)\)/);
   assert.doesNotMatch(css, /perspective\(/);
   assert.doesNotMatch(css, /scale\(/);
   assert.doesNotMatch(css, /opacity: calc\(0\.16/);
@@ -228,12 +286,15 @@ function assertSlideInFromHalfway(css: string): void {
   );
   assert.match(
     css,
-    /\[data-testid="secondary-panel-shelf"\] \{\s*z-index: 0 !important;[^}]*translateX\(calc\(\(1 - var\(--bb-motion-right-depth\)\) \* 50%\)\)/,
+    /\[data-testid="secondary-panel-shelf"\]:not\(\[data-bb-motion-settled\]\) \{[^}]*translateX\(calc\(\(1 - var\(--bb-motion-right-depth\)\) \* 50%\)\)/,
   );
+  assert.doesNotMatch(css.match(/\[data-testid="secondary-panel-shelf"\] \{[^}]*\}/)?.[0] ?? "", /transform:/);
   assert.doesNotMatch(css, /z-index:\s*35/);
   const aside =
     css.match(/\[data-panel\] > aside \{[^}]*\}/)?.[0] ?? "";
-  assert.match(aside, /brightness\(calc\(0\.7 \+ var\(--bb-motion-right-depth\) \* 0\.3\)\)/);
+  assert.doesNotMatch(aside, /filter:/);
+  assert.doesNotMatch(css, /style\*="220ms"/);
+  assert.doesNotMatch(css, /data-bb-motion-pin/);
   assert.doesNotMatch(aside, /translateX/);
   assert.match(
     css,

@@ -4,6 +4,7 @@ const RIGHT_DEPTH_VAR = "--bb-motion-right-depth";
 const PARKED = "liteSidebarParked";
 const RIGHT_PARKED = "bbMotionRightParked";
 const RIGHT_PIN = "bbMotionPin";
+const RIGHT_SETTLED = "bbMotionSettled";
 const SCREEN = "bbMotionScreen";
 const SCREEN_MOVE_PX = 1;
 const SLIDE_MS = 720;
@@ -12,7 +13,6 @@ const RIGHT_PANEL = "[data-panel] > aside";
 const RIGHT_SHELF = '[data-testid="secondary-panel-shelf"]';
 
 const RIGHT_DEPTH_LOOK = `
-  filter: brightness(calc(0.7 + var(${RIGHT_DEPTH_VAR}) * 0.3));
   opacity: 1;
 `;
 
@@ -37,17 +37,9 @@ const SIDEBAR_DEPTH_CSS = `
   pointer-events: none;
   visibility: hidden !important;
 }
-[data-panel-group][style*="220ms"]:has(${RIGHT_PANEL}),
-[style*="220ms"]:has(> [data-panel-group] ${RIGHT_PANEL}) {
-  --panel-collapse-duration: ${SLIDE_MS}ms !important;
-}
 ${RIGHT_PANEL} {
   ${RIGHT_DEPTH_VAR}: 1;
   ${RIGHT_DEPTH_LOOK}
-}
-${RIGHT_PANEL}[data-bb-motion-pin] {
-  left: auto !important;
-  right: 0 !important;
 }
 ${RIGHT_PANEL}[data-bb-motion-right-parked] {
   pointer-events: none;
@@ -56,6 +48,8 @@ ${RIGHT_SHELF} {
   z-index: 0 !important;
   ${RIGHT_DEPTH_VAR}: 1;
   ${RIGHT_DEPTH_LOOK}
+}
+${RIGHT_SHELF}:not([data-bb-motion-settled]) {
   transform: translateX(calc((1 - var(${RIGHT_DEPTH_VAR})) * 50%));
 }
 ${RIGHT_SHELF}[data-state="closed"] {
@@ -88,14 +82,6 @@ ${RIGHT_SHELF}[data-state="closed"] {
     opacity: 1 !important;
     transform: none !important;
     transition: none !important;
-  }
-  [data-panel-group][style*="220ms"]:has(${RIGHT_PANEL}),
-  [style*="220ms"]:has(> [data-panel-group] ${RIGHT_PANEL}) {
-    --panel-collapse-duration: 220ms !important;
-  }
-  ${RIGHT_PANEL}[data-bb-motion-pin] {
-    left: 0 !important;
-    right: auto !important;
   }
 }
 `;
@@ -418,6 +404,9 @@ export function applyRightDepth(panel: HTMLElement, progress: number, pin: boole
   else delete panel.dataset[RIGHT_PIN];
   if (next <= 0.012) panel.dataset[RIGHT_PARKED] = "";
   else delete panel.dataset[RIGHT_PARKED];
+  // A resting filter or transform freezes the native browser view and the terminal WebGL canvas.
+  if (next >= 0.988) panel.dataset[RIGHT_SETTLED] = "";
+  else delete panel.dataset[RIGHT_SETTLED];
 }
 
 export function readRightDepth(aside: HTMLElement): number {
@@ -533,7 +522,14 @@ function trackSidebarDepth(doc: Document): () => void {
   resize = typeof ResizeObserver === "function" ? new ResizeObserver(kick) : null;
 
   kick();
-  const mutations = new MutationObserver(kick);
+  const mutations = new MutationObserver((records) => {
+    for (const record of records) {
+      if (isSidebarMotionTarget(record.target)) {
+        kick();
+        return;
+      }
+    }
+  });
   mutations.observe(doc.body ?? doc.documentElement, {
     attributeFilter: [
       "class",
@@ -852,6 +848,17 @@ function eventPoint(event: Event): FingerPoint | null {
     touchId: null,
     button: point.button ?? 0,
   };
+}
+
+const MOTION_SHELL =
+  '[data-sidebar="panel"], [data-sidebar="inset"], [data-sidebar="gap"], [data-panel-group], [data-panel], [data-testid="secondary-panel-shelf"]';
+
+export function isSidebarMotionTarget(target: EventTarget | null): boolean {
+  const element = asElement(target);
+  if (element === null) return false;
+  if (element.matches(MOTION_SHELL)) return true;
+  const parent = element.parentElement;
+  return parent?.matches("[data-panel]") === true && element.tagName === "ASIDE";
 }
 
 function asElement(target: EventTarget | null): Element | null {
