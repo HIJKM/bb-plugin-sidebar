@@ -8,13 +8,15 @@
   },
   "bb": {
     "name": "Sidebar",
-    "description": "왼쪽 사이드바와 우측 패널이 열리고 닫힐 때 같은 깊이로 들어오고 나간다.",
+    "description": "\uc67c\ucabd \uc0ac\uc774\ub4dc\ubc14\uc640 \uc6b0\uce21 \ud328\ub110\uc774 \uc5f4\ub9ac\uace0 \ub2eb\ud790 \ub54c \uac19\uc740 \uae4a\uc774\ub85c \ub4e4\uc5b4\uc624\uace0 \ub098\uac04\ub2e4.",
     "branding": {
       "icon": "PanelLeft"
     },
     "server": "./server.ts",
     "app": "./app.tsx",
-    "skills": ["skills"]
+    "skills": [
+      "skills"
+    ]
   },
   "scripts": {
     "test": "node --experimental-strip-types --test lib/*.test.ts",
@@ -24,5 +26,6 @@
     "@get-bb/plugin-sdk": "0.6.5",
     "@types/node": "^22.0.0",
     "typescript": "^5.7.0"
-  }
+  },
+  "license": "MIT"
 }
