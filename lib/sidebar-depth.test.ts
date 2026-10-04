@@ -11,6 +11,7 @@ import {
   nextSidebarPhase,
   blurComposerCaret,
   postSlideHaptic,
+  slideHapticKind,
   isRightPanelTabPress,
   rightPanelTabSwipe,
   readReleaseTarget,
@@ -376,13 +377,22 @@ describe("syncSidebarDepth chat screen", () => {
     assert.deepEqual(sent, [{ type: "haptic", kind: "impact-light" }]);
     translate = "80px";
     syncSidebarDepth(doc as unknown as Document);
-    assert.equal(sent.length, 2);
+    assert.deepEqual(sent, [
+      { type: "haptic", kind: "impact-light" },
+      { type: "haptic", kind: "impact-light" },
+    ]);
     translate = "-80px";
     syncSidebarDepth(doc as unknown as Document);
-    assert.equal(sent.length, 4);
+    assert.deepEqual(sent, [
+      { type: "haptic", kind: "impact-light" },
+      { type: "haptic", kind: "impact-light" },
+      { type: "haptic", kind: "impact-light" },
+      { type: "haptic", kind: "impact-light" },
+    ]);
     translate = "0px";
     syncSidebarDepth(doc as unknown as Document);
     assert.equal(sent.length, 5);
+    assert.deepEqual(sent[4], { type: "haptic", kind: "impact-light" });
   });
 });
 
@@ -980,6 +990,13 @@ describe("postSlideHaptic", () => {
       true,
     );
     assert.deepEqual(sent, [{ type: "haptic", kind: "impact-light" }]);
+    assert.equal(
+      postSlideHaptic({ post: (message) => sent.push(message), capabilities: ["haptic"] }, "selection"),
+      true,
+    );
+    assert.deepEqual(sent[1], { type: "haptic", kind: "selection" });
+    assert.equal(slideHapticKind("left"), "impact-light");
+    assert.equal(slideHapticKind("right"), "impact-light");
   });
 });
 

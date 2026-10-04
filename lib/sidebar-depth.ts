@@ -416,14 +416,23 @@ export function blurComposerCaret(doc: Document): boolean {
   return true;
 }
 
-export function postSlideHaptic(native: {
-  post?: (message: unknown) => void;
-  capabilities?: readonly string[];
-} | null): boolean {
+export type SlideHapticKind = "selection" | "impact-light";
+
+export function slideHapticKind(side: SidebarSide): SlideHapticKind {
+  return side === "left" ? "impact-light" : "impact-light";
+}
+
+export function postSlideHaptic(
+  native: {
+    post?: (message: unknown) => void;
+    capabilities?: readonly string[];
+  } | null,
+  kind: SlideHapticKind = "impact-light",
+): boolean {
   if (native === null || typeof native.post !== "function") return false;
   if (!native.capabilities?.includes("haptic")) return false;
   try {
-    native.post({ type: "haptic", kind: "impact-light" });
+    native.post({ type: "haptic", kind });
   } catch {
     return false;
   }
@@ -815,7 +824,10 @@ function syncChatScreen(doc: Document): void {
   }
   if (fresh.length === 0) return;
   const native = readNativeBridge(doc);
-  for (const _haptic of fresh) postSlideHaptic(native);
+  for (const haptic of fresh) {
+    const side = haptic === "open" ? sidebarPhase.side : previousPhase.side;
+    postSlideHaptic(native, slideHapticKind(side));
+  }
 }
 
 function readScreenSample(doc: Document, inset: HTMLElement): {
@@ -906,7 +918,13 @@ function trackFingerUp(doc: Document, event: Event): void {
   }
   if (decision.haptics.length === 0) return;
   const native = readNativeBridge(doc);
-  for (const _haptic of decision.haptics) postSlideHaptic(native);
+  const acted = fingerHapticSide(release.target);
+  for (const haptic of decision.haptics) {
+    const side = haptic === "close" && sidebarPhase.side !== "rest" && sidebarPhase.side !== acted
+      ? sidebarPhase.side
+      : acted;
+    postSlideHaptic(native, slideHapticKind(side));
+  }
 }
 
 function primeSidebarPhase(doc: Document): void {
@@ -923,6 +941,18 @@ function releaseWidth(doc: Document, target: EventTarget | null): number {
     kind === "right-shelf" || kind === "right-dismiss" || kind === "right-hide" ? RIGHT_SHELF : '[data-sidebar="panel"]';
   const width = doc.querySelector<HTMLElement>(selector)?.getBoundingClientRect?.().width ?? 0;
   return width > 0 ? width : 0;
+}
+
+function fingerHapticSide(target: ReleaseTarget): "left" | "right" {
+  if (
+    target === "left-trigger" ||
+    target === "left-backdrop" ||
+    target === "left-panel" ||
+    target === "inset"
+  ) {
+    return "left";
+  }
+  return "right";
 }
 
 function consumeSuppress(haptics: SidebarHaptic[]): SidebarHaptic[] {
