@@ -1,0 +1,7 @@
+:root, .light {
+  --canvas: oklch(0.97 0 0);
+}
+
+.dark {
+  --canvas: oklch(0.17 0 0);
+}

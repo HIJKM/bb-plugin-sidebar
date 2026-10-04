@@ -16,6 +16,13 @@
     "app": "./app.tsx",
     "skills": [
       "skills"
+    ],
+    "themes": [
+      {
+        "id": "chat-canvas",
+        "name": "Chat canvas",
+        "css": "./themes/chat-canvas.css"
+      }
     ]
   },
   "scripts": {

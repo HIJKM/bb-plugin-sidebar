@@ -107,25 +107,72 @@ ${RIGHT_SHELF}[data-state="closed"] {
     box-shadow: 0 12px 32px rgb(0 0 0 / 0.16);
     border-right-color: transparent;
     overflow: clip;
-    transform-origin: left center;
-    transform: scale(1);
+    filter: none;
+    transform: none;
     opacity: 1;
+    z-index: 21;
     transition:
       transform ${SLIDE_MS}ms ${SLIDE_EASE},
       opacity ${SLIDE_MS}ms ${SLIDE_EASE},
-      width ${SLIDE_MS}ms ${SLIDE_EASE},
       visibility 0s linear 0s !important;
   }
   [data-collapsible="offcanvas"][data-side="left"] > [data-sidebar="panel"] {
-    transform: scale(0.8);
+    transform: translateX(-100%);
     opacity: 0;
     pointer-events: none;
     visibility: hidden !important;
     transition:
       transform ${SLIDE_MS}ms ${SLIDE_EASE},
       opacity ${SLIDE_MS}ms ${SLIDE_EASE},
-      width ${SLIDE_MS}ms ${SLIDE_EASE},
       visibility 0s linear ${SLIDE_MS}ms !important;
+  }
+  [data-side="left"] {
+    anchor-scope: --bb-motion-left-column;
+  }
+  [data-side="left"] > [data-sidebar="gap"] {
+    anchor-name: --bb-motion-left-column;
+  }
+  [data-side="left"]:not([data-collapsible="offcanvas"]) [data-testid$="-sidebar-resize-handle"] {
+    position: fixed !important;
+    position-anchor: --bb-motion-left-column;
+    left: calc(anchor(right) - 6px) !important;
+    right: auto !important;
+    top: anchor(top) !important;
+    bottom: anchor(bottom) !important;
+    height: auto !important;
+  }
+  [data-side="left"]:not([data-collapsible="offcanvas"]) [data-testid$="-sidebar-resize-handle"]::before {
+    content: "";
+    top: 50% !important;
+    right: auto !important;
+    bottom: auto !important;
+    left: 50% !important;
+    width: 4px !important;
+    height: 32px !important;
+    border-radius: 999px;
+    background: white !important;
+    opacity: 0;
+    transform: translate(-50%, -50%) !important;
+    pointer-events: none;
+    transition: opacity 120ms linear;
+  }
+  [data-side="left"]:not([data-collapsible="offcanvas"]) [data-testid$="-sidebar-resize-handle"]:hover::before,
+  [data-side="left"]:not([data-collapsible="offcanvas"]) [data-testid$="-sidebar-resize-handle"]:active::before {
+    opacity: 1;
+  }
+  :root {
+    --bb-motion-chat-canvas: oklch(0.97 0 0);
+  }
+  .dark {
+    --bb-motion-chat-canvas: oklch(0.17 0 0);
+  }
+  [data-side="left"] > [data-sidebar="gap"],
+  [data-side="left"] > [data-sidebar="panel"],
+  [data-side="left"] .bg-sidebar,
+  [data-panel]:has(> aside),
+  [data-panel]:has(> aside) > aside,
+  [data-panel]:has(> aside) > aside .bg-sidebar {
+    background-color: var(--bb-motion-chat-canvas) !important;
   }
   [data-panel]:has(> aside) > aside {
     top: 10px;
@@ -136,12 +183,12 @@ ${RIGHT_SHELF}[data-state="closed"] {
     border-radius: 20px;
     corner-shape: squircle;
     box-shadow: 0 12px 32px rgb(0 0 0 / 0.16);
+    z-index: 21;
     border-left-color: transparent;
     overflow: clip;
   }
   [data-panel]:has(> aside) {
-    overflow: visible;
-    transform-origin: right center;
+    overflow: visible !important;
     transform: none;
     opacity: 1;
     transition:
@@ -151,22 +198,70 @@ ${RIGHT_SHELF}[data-state="closed"] {
       opacity ${SLIDE_MS}ms ${SLIDE_EASE},
       visibility 0s linear 0s;
   }
-  [data-panel]:has(> aside[aria-hidden="true"]) {
+  #thread-detail-secondary-panel-handle {
+    z-index: 22;
+    background-color: transparent !important;
+  }
+  #thread-detail-secondary-panel-handle[data-panel-resize-handle-enabled] {
+    width: 16px !important;
+    margin-left: -8px !important;
+    margin-right: -8px !important;
+  }
+  .dark [data-side="left"]:not([data-collapsible="offcanvas"]) [data-testid$="-sidebar-resize-handle"]::before,
+  .dark #thread-detail-secondary-panel-handle > [data-panel-resize-hit-target]::before {
+    background: var(--sidebar-border) !important;
+  }
+  #thread-detail-secondary-panel-handle > :not([data-panel-resize-hit-target]) {
+    background-color: transparent !important;
+    opacity: 0 !important;
+  }
+  #thread-detail-secondary-panel-handle > [data-panel-resize-hit-target]::before {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 4px;
+    height: 32px;
+    border-radius: 999px;
+    background: white;
+    opacity: 0;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    transition: opacity 120ms linear;
+  }
+  #thread-detail-secondary-panel-handle:hover > [data-panel-resize-hit-target]::before,
+  #thread-detail-secondary-panel-handle:active > [data-panel-resize-hit-target]::before,
+  #thread-detail-secondary-panel-handle[data-resize-handle-state="hover"] > [data-panel-resize-hit-target]::before,
+  #thread-detail-secondary-panel-handle[data-resize-handle-state="drag"] > [data-panel-resize-hit-target]::before {
+    opacity: 1;
+  }
+  @keyframes bb-motion-right-leave {
+    from { transform: translateX(0); opacity: 1; }
+    to { transform: translateX(100%); opacity: 0; }
+  }
+  @keyframes bb-motion-right-enter {
+    from { transform: translateX(100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+  }
+  [data-panel][data-bb-motion-right-phase="leave"]:has(> aside) {
     position: fixed;
     top: 0;
     right: 0;
     bottom: 0;
     width: var(--bb-motion-right-card-width, 32rem);
     height: auto;
-    transform: scale(0.8);
-    opacity: 0;
+    z-index: 21;
     pointer-events: none;
+    visibility: visible;
+    animation: bb-motion-right-leave ${SLIDE_MS}ms ${SLIDE_EASE} both;
+  }
+  [data-panel][data-bb-motion-right-phase="enter"]:has(> aside) {
+    animation: bb-motion-right-enter ${SLIDE_MS}ms ${SLIDE_EASE} both;
+  }
+  [data-panel]:has(> aside[aria-hidden="true"]):not([data-bb-motion-right-phase]) {
+    opacity: 0;
     visibility: hidden;
-    z-index: 20;
-    transition:
-      transform ${SLIDE_MS}ms ${SLIDE_EASE},
-      opacity ${SLIDE_MS}ms ${SLIDE_EASE},
-      visibility 0s linear ${SLIDE_MS}ms;
+    pointer-events: none;
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -188,12 +283,13 @@ ${RIGHT_SHELF}[data-state="closed"] {
     pointer-events: none;
     transition: none !important;
   }
-  [data-panel]:has(> aside[aria-hidden="true"]) {
+  [data-panel]:has(> aside[aria-hidden="true"]),
+  [data-panel][data-bb-motion-right-phase="leave"]:has(> aside) {
     opacity: 0 !important;
     visibility: hidden !important;
     pointer-events: none;
     transform: none !important;
-    filter: none !important;
+    animation: none !important;
     transition: none !important;
   }
 }
@@ -201,6 +297,14 @@ ${RIGHT_SHELF}[data-state="closed"] {
 
 export function keepWatchingSlide(idleMs: number): boolean {
   return idleMs < SLIDE_MS;
+}
+
+export function tracksSlideGeometry(element: {
+  getAttribute?: (name: string) => string | null;
+  matches?: (selector: string) => boolean;
+}): boolean {
+  if (element.matches?.(RIGHT_SHELF) === true) return true;
+  return element.getAttribute?.("data-vaul-drawer-direction") != null;
 }
 
 export function sidebarDepthProgress(box: { left: number; width: number }): number {
@@ -578,12 +682,34 @@ export function applyRightDepth(panel: HTMLElement, progress: number, pin: boole
   else delete panel.dataset[RIGHT_SETTLED];
 }
 
+const RIGHT_WAS = "bbMotionRightWas";
+const RIGHT_PHASE = "bbMotionRightPhase";
+const rightSlideToken = new WeakMap<object, number>();
+
 function rememberRightCardWidth(aside: HTMLElement): void {
   if (aside.getAttribute?.("aria-hidden") === "true") return;
   const parent = aside.parentElement;
   const width = parent?.getBoundingClientRect?.().width ?? 0;
   if (parent === null || width <= 0) return;
   parent.style?.setProperty?.("--bb-motion-right-card-width", `${Math.round(width)}px`);
+}
+
+function syncRightSlide(aside: HTMLElement): void {
+  const parent = aside.parentElement;
+  if (parent?.dataset === undefined) return;
+  const hidden = aside.getAttribute?.("aria-hidden") === "true";
+  const next = hidden ? "hidden" : "open";
+  const previous = parent.dataset[RIGHT_WAS];
+  parent.dataset[RIGHT_WAS] = next;
+  if (previous === undefined || previous === next) return;
+  const phase = hidden ? "leave" : "enter";
+  parent.dataset[RIGHT_PHASE] = phase;
+  const token = (rightSlideToken.get(parent) ?? 0) + 1;
+  rightSlideToken.set(parent, token);
+  aside.ownerDocument?.defaultView?.setTimeout(() => {
+    if (rightSlideToken.get(parent) !== token) return;
+    if (parent.dataset[RIGHT_PHASE] === phase) delete parent.dataset[RIGHT_PHASE];
+  }, SLIDE_MS);
 }
 
 export function readRightDepth(aside: HTMLElement): number {
@@ -619,6 +745,7 @@ export function syncSidebarDepth(doc: Document): number {
     else delete aside.dataset[RIGHT_PIN];
     applyRightDepth(aside, readRightDepth(aside), pin);
     rememberRightCardWidth(aside);
+    syncRightSlide(aside);
     count += 1;
   });
   let shelfProgress = 0;
@@ -721,6 +848,7 @@ function trackSidebarDepth(doc: Document): () => void {
       "data-collapsible",
       "data-panel-shelf",
       "data-sidebar-shelf",
+      "aria-hidden",
       "data-state",
       "style",
     ],
@@ -836,12 +964,19 @@ function clearChatScreen(doc: Document): void {
 function snapshot(doc: Document): string {
   const left = Array.from(doc.querySelectorAll<HTMLElement>('[data-sidebar="panel"]'))
     .map((panel) => {
+      if (!tracksSlideGeometry(panel)) {
+        const shell = panel.parentElement;
+        return `${shell?.getAttribute("data-collapsible") ?? ""}:${shell?.getAttribute("data-state") ?? ""}`;
+      }
       const box = panel.getBoundingClientRect();
       return `${box.left}:${box.width}:${readSidebarDepth(doc, panel).toFixed(3)}`;
     })
     .join("|");
   const right = Array.from(doc.querySelectorAll<HTMLElement>(`${RIGHT_PANEL}, ${RIGHT_SHELF}`))
     .map((panel) => {
+      if (!tracksSlideGeometry(panel)) {
+        return `${panel.getAttribute("aria-hidden") ?? ""}:${panel.parentElement?.getAttribute("data-bb-motion-right-phase") ?? ""}`;
+      }
       const box = panel.getBoundingClientRect();
       const depth = panel.matches(RIGHT_SHELF)
         ? readRightShelfDepth(doc, panel)
