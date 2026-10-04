@@ -18,8 +18,8 @@ A BB plugin that animates only the shell chrome: the left sidebar and the right 
 Thread row colors, icons, and branch labels are not this plugin — use `bb-thread-theme` for that.
 Ribbon / navigation chrome is separate (`bb-ribbon`).
 
-- **left sidebar** — eases in and out with the same depth feel as the right panel
-- **right panel** — open, close, and tab changes stay light on browser and terminal views underneath
+- **left sidebar** — on desktop, a floating card. It scales up from the left edge and fades in. Closing reverses that. The mobile drawer still eases in from halfway.
+- **right panel** — on desktop, the same scale and fade from the right edge. An open panel does not keep a transform, so browser and terminal views keep working. Narrow screens keep the shelf slide.
 - **haptics** — short `impact-light` feedback on open/close and panel tab actions when the host supports it
 - **composer focus** — opening the left sidebar blurs the composer so the keyboard can dismiss on mobile
 

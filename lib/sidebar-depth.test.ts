@@ -141,6 +141,43 @@ describe("readRightDepth", () => {
     assert.equal(readRightDepth(aside as unknown as HTMLElement), 0.5);
     assert.equal(aside.style.props.get("--bb-motion-right-depth"), "0.5");
   });
+
+  it("remembers the open panel width and keeps it while the panel is hidden", () => {
+    const parent = {
+      getBoundingClientRect: () => ({ width: 280.4 }),
+      style: {
+        props: new Map<string, string>(),
+        setProperty(name: string, value: string) {
+          this.props.set(name, value);
+        },
+      },
+    };
+    const aside = {
+      dataset: {} as Record<string, string | undefined>,
+      style: {
+        width: "40cqw",
+        props: new Map<string, string>(),
+        setProperty(name: string, value: string) {
+          this.props.set(name, value);
+        },
+      },
+      parentElement: parent,
+      getBoundingClientRect: () => ({ left: 100, right: 380, width: 280 }),
+      getAttribute: (name: string) => (name === "aria-hidden" ? hidden : null),
+    };
+    let hidden: string | null = null;
+    const doc = {
+      defaultView: null,
+      querySelectorAll: (selector: string) =>
+        selector === "[data-panel] > aside" ? [aside] : [],
+    };
+    syncSidebarDepth(doc as unknown as Document);
+    assert.equal(parent.style.props.get("--bb-motion-right-card-width"), "280px");
+    hidden = "true";
+    parent.getBoundingClientRect = () => ({ width: 0 });
+    syncSidebarDepth(doc as unknown as Document);
+    assert.equal(parent.style.props.get("--bb-motion-right-card-width"), "280px");
+  });
 });
 
 describe("readRightShelfDepth", () => {
@@ -301,11 +338,31 @@ describe("syncSidebarDepth", () => {
   });
 });
 
+function mediaBody(css: string, query: string): string {
+  const header = `@media ${query} {`;
+  const start = css.indexOf(header);
+  assert.notEqual(start, -1, header);
+  let depth = 0;
+  for (let i = css.indexOf("{", start); i < css.length; i++) {
+    if (css[i] === "{") depth += 1;
+    else if (css[i] === "}") {
+      depth -= 1;
+      if (depth === 0) return css.slice(start + header.length, i);
+    }
+  }
+  assert.fail(`unclosed ${header}`);
+  return "";
+}
+
 function assertSlideInFromHalfway(css: string): void {
   assert.match(css, /brightness\(calc\(0\.7 \+ var\(--lite-sidebar-depth\) \* 0\.3\)\)/);
   assert.doesNotMatch(css, /brightness\(calc\(0\.7 \+ var\(--bb-motion-right-depth\) \* 0\.3\)\)/);
   assert.doesNotMatch(css, /perspective\(/);
-  assert.doesNotMatch(css, /scale\(/);
+  const desktop = mediaBody(css, "(min-width: 768px)");
+  assert.doesNotMatch(css.replace(desktop, ""), /scale\(/);
+  assert.match(desktop, /scale\(1\)/);
+  assert.match(desktop, /scale\(0\.8\)/);
+  assert.doesNotMatch(desktop, /scale\(0\.92\)/);
   assert.doesNotMatch(css, /opacity: calc\(0\.16/);
   assert.match(
     css,
@@ -347,6 +404,40 @@ function assertSlideInFromHalfway(css: string): void {
   assert.match(
     css,
     /@media \(max-width: 767px\) \{[^]*\[data-sidebar="inset"\]\[data-panel-shelf="shelf"\],\s*\[data-sidebar="inset"\]\[data-panel-shelf="full"\] \{\s*border-top-right-radius: 0;\s*border-bottom-right-radius: 0;\s*box-shadow: 67px 0 0 0 var\(--background\);/,
+  );
+  assert.match(
+    desktop,
+    /\[data-side="left"\] > \[data-sidebar="panel"\] \{\s*top: 10px;\s*bottom: 10px;\s*left: 10px !important;\s*width: calc\(var\(--sidebar-width\) - 20px\);\s*height: auto;\s*border-radius: 20px;\s*corner-shape: squircle;\s*box-shadow: 0 12px 32px rgb\(0 0 0 \/ 0\.16\);\s*border-right-color: transparent;\s*overflow: clip;\s*transform-origin: left center;\s*transform: scale\(1\);\s*opacity: 1;\s*transition:\s*transform 720ms cubic-bezier\(0\.32, 0\.72, 0, 1\),\s*opacity 720ms cubic-bezier\(0\.32, 0\.72, 0, 1\),\s*width 720ms cubic-bezier\(0\.32, 0\.72, 0, 1\),\s*visibility 0s linear 0s !important;\s*\}/,
+  );
+  assert.doesNotMatch(desktop, /body\.sidebar-resizing/);
+  assert.match(
+    desktop,
+    /\[data-collapsible="offcanvas"\]\[data-side="left"\] > \[data-sidebar="panel"\] \{\s*transform: scale\(0\.8\);\s*opacity: 0;\s*pointer-events: none;\s*visibility: hidden !important;\s*transition:\s*transform 720ms cubic-bezier\(0\.32, 0\.72, 0, 1\),\s*opacity 720ms cubic-bezier\(0\.32, 0\.72, 0, 1\),\s*width 720ms cubic-bezier\(0\.32, 0\.72, 0, 1\),\s*visibility 0s linear 720ms !important;\s*\}/,
+  );
+  const rightAside =
+    desktop.match(/\[data-panel\]:has\(> aside\) > aside \{[^}]*\}/)?.[0] ?? "";
+  assert.match(
+    rightAside,
+    /top: 10px;\s*bottom: 10px;\s*width: calc\(100% - 20px\) !important;\s*height: auto;\s*margin-left: 10px;\s*border-radius: 20px;\s*corner-shape: squircle;\s*box-shadow: 0 12px 32px rgb\(0 0 0 \/ 0\.16\);\s*border-left-color: transparent;\s*overflow: clip;/,
+  );
+  assert.doesNotMatch(rightAside, /^\s*(filter|transform|left|right):/m);
+  assert.match(
+    desktop,
+    /\[data-panel\]:has\(> aside\) \{\s*overflow: visible;\s*transform-origin: right center;\s*transform: none;\s*opacity: 1;\s*transition:\s*flex-grow var\(--panel-collapse-duration, 220ms\) cubic-bezier\(0\.32, 0\.72, 0, 1\),\s*flex-basis var\(--panel-collapse-duration, 220ms\) cubic-bezier\(0\.32, 0\.72, 0, 1\),\s*transform 720ms cubic-bezier\(0\.32, 0\.72, 0, 1\),\s*opacity 720ms cubic-bezier\(0\.32, 0\.72, 0, 1\),\s*visibility 0s linear 0s;\s*\}/,
+  );
+  assert.match(
+    desktop,
+    /\[data-panel\]:has\(> aside\[aria-hidden="true"\]\) \{\s*position: fixed;\s*top: 0;\s*right: 0;\s*bottom: 0;\s*width: var\(--bb-motion-right-card-width, 32rem\);\s*height: auto;\s*transform: scale\(0\.8\);\s*opacity: 0;\s*pointer-events: none;\s*visibility: hidden;\s*z-index: 20;\s*transition:\s*transform 720ms cubic-bezier\(0\.32, 0\.72, 0, 1\),\s*opacity 720ms cubic-bezier\(0\.32, 0\.72, 0, 1\),\s*visibility 0s linear 720ms;\s*\}/,
+  );
+  const reduce = mediaBody(css, "(prefers-reduced-motion: reduce)");
+  assert.match(reduce, /\[data-side="left"\] > \[data-sidebar="panel"\],/);
+  assert.match(
+    reduce,
+    /\[data-collapsible="offcanvas"\]\[data-side="left"\] > \[data-sidebar="panel"\] \{\s*opacity: 0 !important;\s*visibility: hidden !important;\s*pointer-events: none;\s*transition: none !important;\s*\}/,
+  );
+  assert.match(
+    reduce,
+    /\[data-panel\]:has\(> aside\[aria-hidden="true"\]\) \{\s*opacity: 0 !important;\s*visibility: hidden !important;\s*pointer-events: none;\s*transform: none !important;\s*filter: none !important;\s*transition: none !important;\s*\}/,
   );
 }
 

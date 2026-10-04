@@ -95,15 +95,105 @@ ${RIGHT_SHELF}[data-state="closed"] {
     transform: translateX(calc(var(--bb-motion-chat-dim) * 50%));
   }
 }
+@media (min-width: 768px) {
+  [data-side="left"] > [data-sidebar="panel"] {
+    top: 10px;
+    bottom: 10px;
+    left: 10px !important;
+    width: calc(var(--sidebar-width) - 20px);
+    height: auto;
+    border-radius: 20px;
+    corner-shape: squircle;
+    box-shadow: 0 12px 32px rgb(0 0 0 / 0.16);
+    border-right-color: transparent;
+    overflow: clip;
+    transform-origin: left center;
+    transform: scale(1);
+    opacity: 1;
+    transition:
+      transform ${SLIDE_MS}ms ${SLIDE_EASE},
+      opacity ${SLIDE_MS}ms ${SLIDE_EASE},
+      width ${SLIDE_MS}ms ${SLIDE_EASE},
+      visibility 0s linear 0s !important;
+  }
+  [data-collapsible="offcanvas"][data-side="left"] > [data-sidebar="panel"] {
+    transform: scale(0.8);
+    opacity: 0;
+    pointer-events: none;
+    visibility: hidden !important;
+    transition:
+      transform ${SLIDE_MS}ms ${SLIDE_EASE},
+      opacity ${SLIDE_MS}ms ${SLIDE_EASE},
+      width ${SLIDE_MS}ms ${SLIDE_EASE},
+      visibility 0s linear ${SLIDE_MS}ms !important;
+  }
+  [data-panel]:has(> aside) > aside {
+    top: 10px;
+    bottom: 10px;
+    width: calc(100% - 20px) !important;
+    height: auto;
+    margin-left: 10px;
+    border-radius: 20px;
+    corner-shape: squircle;
+    box-shadow: 0 12px 32px rgb(0 0 0 / 0.16);
+    border-left-color: transparent;
+    overflow: clip;
+  }
+  [data-panel]:has(> aside) {
+    overflow: visible;
+    transform-origin: right center;
+    transform: none;
+    opacity: 1;
+    transition:
+      flex-grow var(--panel-collapse-duration, 220ms) ${SLIDE_EASE},
+      flex-basis var(--panel-collapse-duration, 220ms) ${SLIDE_EASE},
+      transform ${SLIDE_MS}ms ${SLIDE_EASE},
+      opacity ${SLIDE_MS}ms ${SLIDE_EASE},
+      visibility 0s linear 0s;
+  }
+  [data-panel]:has(> aside[aria-hidden="true"]) {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: var(--bb-motion-right-card-width, 32rem);
+    height: auto;
+    transform: scale(0.8);
+    opacity: 0;
+    pointer-events: none;
+    visibility: hidden;
+    z-index: 20;
+    transition:
+      transform ${SLIDE_MS}ms ${SLIDE_EASE},
+      opacity ${SLIDE_MS}ms ${SLIDE_EASE},
+      visibility 0s linear ${SLIDE_MS}ms;
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   [data-sidebar="gap"],
   [data-sidebar="panel"],
+  [data-side="left"] > [data-sidebar="panel"],
+  [data-panel]:has(> aside),
   ${RIGHT_PANEL},
   ${RIGHT_SHELF},
   [data-sidebar="inset"][data-bb-motion-chat-dim] {
     filter: none !important;
     opacity: 1 !important;
     transform: none !important;
+    transition: none !important;
+  }
+  [data-collapsible="offcanvas"][data-side="left"] > [data-sidebar="panel"] {
+    opacity: 0 !important;
+    visibility: hidden !important;
+    pointer-events: none;
+    transition: none !important;
+  }
+  [data-panel]:has(> aside[aria-hidden="true"]) {
+    opacity: 0 !important;
+    visibility: hidden !important;
+    pointer-events: none;
+    transform: none !important;
+    filter: none !important;
     transition: none !important;
   }
 }
@@ -488,6 +578,14 @@ export function applyRightDepth(panel: HTMLElement, progress: number, pin: boole
   else delete panel.dataset[RIGHT_SETTLED];
 }
 
+function rememberRightCardWidth(aside: HTMLElement): void {
+  if (aside.getAttribute?.("aria-hidden") === "true") return;
+  const parent = aside.parentElement;
+  const width = parent?.getBoundingClientRect?.().width ?? 0;
+  if (parent === null || width <= 0) return;
+  parent.style?.setProperty?.("--bb-motion-right-card-width", `${Math.round(width)}px`);
+}
+
 export function readRightDepth(aside: HTMLElement): number {
   const clip = aside.parentElement?.getBoundingClientRect();
   if (clip === undefined) return 1;
@@ -520,6 +618,7 @@ export function syncSidebarDepth(doc: Document): number {
     if (pin) aside.dataset[RIGHT_PIN] = "";
     else delete aside.dataset[RIGHT_PIN];
     applyRightDepth(aside, readRightDepth(aside), pin);
+    rememberRightCardWidth(aside);
     count += 1;
   });
   let shelfProgress = 0;
