@@ -515,9 +515,21 @@ function assertSlideInFromHalfway(css: string): void {
   );
   assert.match(
     desktop,
-    /\[data-side="left"\] > \[data-sidebar="gap"\],\s*\[data-side="left"\] > \[data-sidebar="panel"\],\s*\[data-side="left"\] \.bg-sidebar,\s*\[data-panel\]:has\(> aside\),\s*\[data-panel\]:has\(> aside\) > aside,\s*\[data-panel\]:has\(> aside\) > aside \.bg-sidebar \{\s*background-color: var\(--bb-motion-chat-canvas\) !important;\s*\}/,
+    /\[data-side="left"\] > \[data-sidebar="gap"\],\s*\[data-panel\]:has\(> aside\) \{\s*background-color: var\(--bb-motion-chat-canvas\) !important;\s*\}/,
   );
   assert.match(
+    desktop,
+    /\[data-side="left"\] > \[data-sidebar="panel"\],\s*\[data-side="left"\] \.bg-sidebar,\s*\[data-panel\]:has\(> aside\) > aside,\s*\[data-panel\]:has\(> aside\) > aside \.bg-sidebar \{\s*background-color: transparent !important;\s*\}/,
+  );
+  assert.match(
+    desktop,
+    /\[data-side="left"\] > \[data-sidebar="panel"\]::before,\s*\[data-panel\]:has\(> aside\) > aside::before \{\s*content: "";\s*position: absolute;\s*inset: 0;\s*z-index: -1;\s*border-radius: inherit;\s*pointer-events: none;\s*background-color: oklch\(0\.97 0 0 \/ 0\.62\);\s*backdrop-filter: blur\(24px\) saturate\(1\.5\);\s*-webkit-backdrop-filter: blur\(24px\) saturate\(1\.5\);\s*\}/,
+  );
+  assert.match(
+    desktop,
+    /\.dark \[data-side="left"\] > \[data-sidebar="panel"\]::before,\s*\.dark \[data-panel\]:has\(> aside\) > aside::before \{\s*background-color: oklch\(0\.27 0 0 \/ 0\.62\);\s*\}/,
+  );
+  assert.doesNotMatch(
     desktop,
     /\.dark \[data-side="left"\] > \[data-sidebar="panel"\],\s*\.dark \[data-side="left"\] \.bg-sidebar,\s*\.dark \[data-panel\]:has\(> aside\) > aside,\s*\.dark \[data-panel\]:has\(> aside\) > aside \.bg-sidebar \{\s*background-color: var\(--bb-motion-card-face\) !important;\s*\}/,
   );
@@ -526,7 +538,7 @@ function assertSlideInFromHalfway(css: string): void {
     desktop,
     /\.dark \[data-side="left"\] > \[data-sidebar="panel"\],\s*\.dark \[data-panel\]:has\(> aside\) > aside \{\s*box-shadow: 0 12px 32px rgb\(0 0 0 \/ 0\.55\);\s*\}/,
   );
-  assert.doesNotMatch(desktop, /backdrop-filter/);
+  assert.match(desktop, /backdrop-filter: blur\(24px\) saturate\(1\.5\)/);
   assert.doesNotMatch(desktop, /\[data-sidebar="sidebar"\]/);
   assert.match(
     desktop,

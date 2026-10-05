@@ -176,12 +176,26 @@ ${RIGHT_SHELF}[data-state="closed"] {
     --bb-motion-card-face: oklch(0.27 0 0);
   }
   [data-side="left"] > [data-sidebar="gap"],
+  [data-panel]:has(> aside) {
+    background-color: var(--bb-motion-chat-canvas) !important;
+  }
   [data-side="left"] > [data-sidebar="panel"],
   [data-side="left"] .bg-sidebar,
-  [data-panel]:has(> aside),
   [data-panel]:has(> aside) > aside,
   [data-panel]:has(> aside) > aside .bg-sidebar {
-    background-color: var(--bb-motion-chat-canvas) !important;
+    background-color: transparent !important;
+  }
+  [data-side="left"] > [data-sidebar="panel"]::before,
+  [data-panel]:has(> aside) > aside::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    pointer-events: none;
+    background-color: oklch(0.97 0 0 / 0.62);
+    backdrop-filter: blur(24px) saturate(1.5);
+    -webkit-backdrop-filter: blur(24px) saturate(1.5);
   }
   [data-panel]:has(> aside) > aside {
     top: 10px;
@@ -196,11 +210,9 @@ ${RIGHT_SHELF}[data-state="closed"] {
     border-left-color: transparent;
     overflow: clip;
   }
-  .dark [data-side="left"] > [data-sidebar="panel"],
-  .dark [data-side="left"] .bg-sidebar,
-  .dark [data-panel]:has(> aside) > aside,
-  .dark [data-panel]:has(> aside) > aside .bg-sidebar {
-    background-color: var(--bb-motion-card-face) !important;
+  .dark [data-side="left"] > [data-sidebar="panel"]::before,
+  .dark [data-panel]:has(> aside) > aside::before {
+    background-color: oklch(0.27 0 0 / 0.62);
   }
   .dark [data-side="left"] > [data-sidebar="panel"],
   .dark [data-panel]:has(> aside) > aside {
