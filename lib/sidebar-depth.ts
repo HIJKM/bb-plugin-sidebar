@@ -185,6 +185,9 @@ ${RIGHT_SHELF}[data-state="closed"] {
   [data-panel]:has(> aside) > aside .bg-sidebar {
     background-color: transparent !important;
   }
+  [data-side="left"] > [data-sidebar="panel"] [data-sidebar="footer"] > [data-overflow-fade="above"][data-overflow-fade-tone="sidebar"] {
+    background-image: none !important;
+  }
   [data-side="left"] > [data-sidebar="panel"]::before,
   [data-panel]:has(> aside) > aside::before {
     content: "";
