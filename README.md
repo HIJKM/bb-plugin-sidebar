@@ -24,7 +24,7 @@ Ribbon / navigation chrome is separate (`bb-ribbon`).
 - **right panel** — on desktop, the same horizontal slide and fade toward the right, including while it closes. 뒤 여백과 프로스트는 왼쪽 카드와 같은 호스트 `--sidebar`를 쓴다. The panel's overflow stays visible so the card shadow is not clipped, and the card's `z-index` is 21 so that shadow paints over the thread footer. The resize handle stays at 22. Its full-height seam stays hidden, and hovering it shows the same short grip. An open panel does not keep a transform, so browser and terminal views keep working. Narrow screens keep the shelf slide.
 - **desktop layout setting** — Settings → Sidebar → "데스크톱 카드 레이아웃" (`desktopLayout`, default on). Off removes the desktop card, slide, grip, and gutter paint and returns the host desktop sidebar. The narrow-screen drawer stays. The ChatUI canvas theme is a separate switch. CLI: `bb plugin config sidebar set desktopLayout false`.
 - **chat canvas theme** — `plugin:sidebar:chat-canvas`는 채팅과 사이드바를 조금 더 어둡게 맞춘 선택 테마다. 라이트는 `--canvas: oklch(0.95 0 0)`, `--sidebar: oklch(0.93 0 0)`, 다크는 각각 `oklch(0.15 0 0)`, `oklch(0.18 0 0)`다. `--background`, `--card`, `--popover`는 canvas를 따른다. 강조색과 UI 효과는 그대로 둔다. Activate with `bb theme set plugin:sidebar:chat-canvas`.
-- **haptics** — short `impact-light` feedback on open/close and panel tab actions when the host supports it
+- **haptics** — 호스트가 지원하면 열림·닫힘, 패널 탭 동작, 새 탭 목록의 모든 실행 행(기본 액션, 플러그인 액션, 최근 파일, 검색 결과)에 짧은 `impact-light`를 보낸다. 정렬 핸들과 비활성 행은 제외한다.
 - **composer focus** — opening the left sidebar blurs the composer so the keyboard can dismiss on mobile
 
 ## install

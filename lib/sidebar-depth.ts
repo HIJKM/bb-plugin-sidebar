@@ -496,6 +496,17 @@ export type FingerHaptic = {
 
 const NO_FINGER_HAPTIC: FingerHaptic = { haptics: [], suppress: [], settle: null };
 
+export function isRightPanelLauncherPress(target: EventTarget | null): boolean {
+  const button = asElement(target)?.closest("button");
+  if (button === null || button === undefined || button.getAttribute("disabled") !== null) return false;
+  if (button.closest('[data-testid="new-tab-actions"]') !== null) {
+    const id = button.getAttribute("id") ?? "";
+    return id.startsWith("plugin-action:") || id.startsWith("file-search-result-");
+  }
+  return button.getAttribute("role") === "option"
+    && button.closest('[role="listbox"]')?.getAttribute("aria-label") === "File search results";
+}
+
 export function isRightPanelTabPress(target: EventTarget | null): boolean {
   const element = asElement(target);
   if (element === null) return false;
@@ -955,16 +966,18 @@ function trackSidebarDepth(doc: Document): () => void {
   watchAll();
   let tabSwipe: { x: number; y: number; pager: Element } | null = null;
   let tabSwipeQuietUntil = 0;
-  let tabPressAt = 0;
-  const buzzTabPress = (target: EventTarget | null): void => {
+  let tabPressAt = -Infinity;
+  const buzzPanelPress = (): void => {
     const time = now();
     if (time < tabSwipeQuietUntil || time - tabPressAt < TAB_SWIPE_QUIET_MS) return;
-    if (!isRightPanelTabPress(target)) return;
     tabPressAt = time;
     postSlideHaptic(readNativeBridge(doc));
   };
   const buzzTab = (event: Event): void => {
-    buzzTabPress(event.target);
+    if (isRightPanelTabPress(event.target)) buzzPanelPress();
+  };
+  const buzzLauncher = (event: Event): void => {
+    if (isRightPanelLauncherPress(event.target)) buzzPanelPress();
   };
   const tabTouchStart = (event: Event): void => {
     const touches = touchPoints(event, "touches");
@@ -998,6 +1011,8 @@ function trackSidebarDepth(doc: Document): () => void {
   const upFinger = (event: Event): void => trackFingerUp(doc, event);
   view?.addEventListener("click", buzzTab, true);
   view?.addEventListener("pointerup", buzzTab, true);
+  // Wait for an actual activation; scrolling and reorder gestures are not row clicks.
+  view?.addEventListener("click", buzzLauncher);
   view?.addEventListener("touchstart", tabTouchStart, true);
   view?.addEventListener("touchend", tabTouchEnd, true);
   view?.addEventListener("touchcancel", tabTouchCancel, true);
@@ -1023,6 +1038,7 @@ function trackSidebarDepth(doc: Document): () => void {
     resize?.disconnect();
     view?.removeEventListener("click", buzzTab, true);
     view?.removeEventListener("pointerup", buzzTab, true);
+    view?.removeEventListener("click", buzzLauncher);
     view?.removeEventListener("touchstart", tabTouchStart, true);
     view?.removeEventListener("touchend", tabTouchEnd, true);
     view?.removeEventListener("touchcancel", tabTouchCancel, true);

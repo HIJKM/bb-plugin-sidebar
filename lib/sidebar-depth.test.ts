@@ -15,6 +15,7 @@ import {
   postSlideHaptic,
   slideHapticKind,
   isRightPanelTabPress,
+  isRightPanelLauncherPress,
   rightPanelTabSwipe,
   readReleaseTarget,
   sidebarFingerRelease,
@@ -919,6 +920,7 @@ describe("sidebar finger release", () => {
 
 function mountFingerHarness() {
   const sent: unknown[] = [];
+  let time = 0;
   let translate = "0px";
   let blurCount = 0;
   const composer = releaseElement({ "data-promptbox": "" });
@@ -953,7 +955,7 @@ function mountFingerHarness() {
       matchMedia: (query: string) => ({ matches: query.includes("max-width") }),
       requestAnimationFrame: () => 1,
       cancelAnimationFrame: () => {},
-      performance: { now: () => 0 },
+      performance: { now: () => time },
       addEventListener: (type: string, fn: (event: Event) => void) => {
         const list = listeners.get(type) ?? [];
         list.push(fn);
@@ -993,6 +995,9 @@ function mountFingerHarness() {
     insetTarget,
     setTranslate(next: string) {
       translate = next;
+    },
+    setTime(next: number) {
+      time = next;
     },
     sync() {
       syncSidebarDepth(doc as unknown as Document);
@@ -1273,6 +1278,51 @@ describe("isRightPanelTabPress", () => {
     assert.equal(isRightPanelTabPress(previous), true);
     assert.equal(isRightPanelTabPress(next), false);
     assert.equal(isRightPanelTabPress(null), false);
+  });
+});
+
+describe("right-panel launcher presses", () => {
+  it("matches every action row, including built-in and plugin actions", () => {
+    const actions = releaseElement({ "data-testid": "new-tab-actions" });
+    for (const id of ["file-search-result-open-browser", "file-search-result-start-terminal", "plugin-action:codes:files", "plugin-action:notes:open"]) {
+      const button = releaseElement({ tag: "button", id }, actions);
+      assert.equal(isRightPanelLauncherPress(releaseElement({}, button)), true);
+    }
+    assert.equal(isRightPanelLauncherPress(releaseElement({ tag: "button", id: "file-search-result-start-terminal", disabled: "" }, actions)), false);
+    assert.equal(isRightPanelLauncherPress(releaseElement({ tag: "button", "aria-label": "Reorder Codes" }, actions)), false);
+    assert.equal(isRightPanelLauncherPress(releaseElement({ tag: "button", id: "terminal-settings" }, actions)), false);
+    assert.equal(isRightPanelLauncherPress(releaseElement({ tag: "button", id: "plugin-action:codes:files" })), false);
+    assert.equal(isRightPanelLauncherPress(null), false);
+  });
+
+  it("matches recent files and search results but skips other lists and controls", () => {
+    const list = releaseElement({ role: "listbox", "aria-label": "File search results" });
+    for (const id of ["recent-file-1", "file-search-result-1"]) {
+      const row = releaseElement({ tag: "button", role: "option", id }, list);
+      assert.equal(isRightPanelLauncherPress(releaseElement({}, row)), true);
+    }
+    assert.equal(isRightPanelLauncherPress(releaseElement({ tag: "button", "aria-expanded": "false" }, list)), false);
+    const otherList = releaseElement({ role: "listbox", "aria-label": "Models" });
+    assert.equal(isRightPanelLauncherPress(releaseElement({ tag: "button", role: "option" }, otherList)), false);
+  });
+
+  it("buzzes once on row activation, stays quiet on pointer release, and removes its listener", () => {
+    const harness = mountFingerHarness();
+    const actions = releaseElement({ "data-testid": "new-tab-actions" });
+    const row = releaseElement({ tag: "button", id: "plugin-action:notes:open" }, actions);
+    try {
+      harness.fire("pointerup", { type: "pointerup", target: row });
+      assert.deepEqual(harness.sent, []);
+      harness.fire("click", { type: "click", target: row });
+      assert.deepEqual(harness.sent, [{ type: "haptic", kind: "impact-light" }]);
+      harness.fire("click", { type: "click", target: row });
+      assert.equal(harness.sent.length, 1);
+    } finally {
+      harness.stop();
+    }
+    harness.setTime(1000);
+    harness.fire("click", { type: "click", target: row });
+    assert.equal(harness.sent.length, 1);
   });
 });
 
