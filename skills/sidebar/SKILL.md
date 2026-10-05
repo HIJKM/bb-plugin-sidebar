@@ -7,7 +7,7 @@ description: 왼쪽 사이드바와 우측 패널이 열리고 닫힐 때의 등
 
 왼쪽 셸(`[data-sidebar="panel"]`)과 우측 패널(`[data-panel] > aside`, 좁은 화면의 secondary shelf)의 열림과 닫힘만 담당한다. 스레드 행의 색, 아이콘, 브랜치 표시는 `bb-thread-theme`다.
 
-모션 코드는 `lib/sidebar-depth.ts`다. 콘텐츠 스크립트 `sidebar-depth`가 마운트될 때 스타일과 추적기를 붙이고, 해제될 때 둘 다 걷어 낸다. 설정 `desktopLayout`(라벨 `데스크톱 카드 레이아웃`)은 기본값이 켜짐이다. 플러그인 설정 화면의 스위치로 바꾼다. 끄면 `@media (min-width: 768px) and (pointer: fine)` 카드 CSS만 빠지고 호스트 데스크톱 사이드바로 돌아간다. 좁은 화면 드로어와 `prefers-reduced-motion`은 남는다. 채팅 면 테마 `plugin:sidebar:chat-canvas`는 이 스위치와 따로다. 값은 `bb plugin config sidebar set desktopLayout false`로도 바꾼다. 변경은 realtime `desktop-layout`으로 스타일시트에 바로 반영된다.
+모션 코드는 `lib/sidebar-depth.ts`다. 콘텐츠 스크립트 `sidebar-depth`가 마운트될 때 스타일과 추적기를 붙이고, 해제될 때 둘 다 걷어 낸다. 설정 `desktopLayout`(라벨 `데스크톱 카드 레이아웃`)은 기본값이 켜짐이다. 플러그인 설정 화면의 스위치로 바꾼다. 끄면 카드 CSS, 카드 슬라이드 phase, 카드용 `prefers-reduced-motion`이 빠지고 카드 이전의 밝기 슬라이드로 돌아간다. 추적기는 그때 데스크톱 패널의 좌표를 다시 읽어 `--lite-sidebar-depth`를 맞춘다. 좁은 화면 드로어는 남는다. 채팅 면 테마 `plugin:sidebar:chat-canvas`는 이 스위치와 따로다. 값은 `bb plugin config sidebar set desktopLayout false`로도 바꾼다. 변경은 realtime `desktop-layout`으로 스타일시트에 바로 반영된다.
 
 우측 패널의 `aside`에는 `filter`, `transform`, `left`/`right`를 두지 않는다. 브라우저 탭의 네이티브 뷰와 터미널 WebGL이 그 아래에서 멈추거나 열리지 않는다. `:has([style*="220ms"])`도 쓰지 않는다. 탭 안 스타일이 바뀔 때마다 패널 전체 스타일을 다시 계산한다. 추적기는 패널 껍데기만 본다.
 

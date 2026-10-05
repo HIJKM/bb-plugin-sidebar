@@ -327,14 +327,31 @@ ${RIGHT_SHELF}[data-state="closed"] {
 `;
 
 const DESKTOP_MEDIA = "@media (min-width: 768px) and (pointer: fine) {";
-const REDUCED_MEDIA = "@media (prefers-reduced-motion: reduce) {";
+const LEGACY_REDUCED_CSS = `@media (prefers-reduced-motion: reduce) {
+  [data-sidebar="gap"],
+  [data-sidebar="panel"],
+  ${RIGHT_PANEL},
+  ${RIGHT_SHELF},
+  [data-sidebar="inset"][data-bb-motion-chat-dim] {
+    filter: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
+  }
+}
+`;
+
+let desktopCardLayout = true;
+
+export function setDesktopCardLayout(enabled: boolean): void {
+  desktopCardLayout = enabled;
+}
 
 export function sidebarDepthCss(desktopLayout: boolean): string {
   if (desktopLayout) return SIDEBAR_DEPTH_CSS;
   const start = SIDEBAR_DEPTH_CSS.indexOf(DESKTOP_MEDIA);
-  const reduced = SIDEBAR_DEPTH_CSS.indexOf(REDUCED_MEDIA);
-  if (start < 0 || reduced < start) return SIDEBAR_DEPTH_CSS;
-  return `${SIDEBAR_DEPTH_CSS.slice(0, start)}${SIDEBAR_DEPTH_CSS.slice(reduced)}`;
+  if (start < 0) return SIDEBAR_DEPTH_CSS;
+  return `${SIDEBAR_DEPTH_CSS.slice(0, start)}${LEGACY_REDUCED_CSS}`;
 }
 
 export function keepWatchingSlide(idleMs: number): boolean {
@@ -346,7 +363,8 @@ export function tracksSlideGeometry(element: {
   matches?: (selector: string) => boolean;
 }): boolean {
   if (element.matches?.(RIGHT_SHELF) === true) return true;
-  return element.getAttribute?.("data-vaul-drawer-direction") != null;
+  if (element.getAttribute?.("data-vaul-drawer-direction") != null) return true;
+  return !desktopCardLayout;
 }
 
 export function sidebarDepthProgress(box: { left: number; width: number }): number {
@@ -736,6 +754,19 @@ function rememberRightCardWidth(aside: HTMLElement): void {
   parent.style?.setProperty?.("--bb-motion-right-card-width", `${Math.round(width)}px`);
 }
 
+function clearRightCardSlide(aside: HTMLElement): void {
+  const parent = aside.parentElement;
+  if (parent?.dataset === undefined) return;
+  delete parent.dataset[RIGHT_WAS];
+  delete parent.dataset[RIGHT_PHASE];
+  parent.style?.removeProperty?.("--bb-motion-right-card-width");
+}
+
+function clearRightCardSlides(doc: Document): void {
+  if (typeof doc.querySelectorAll !== "function") return;
+  doc.querySelectorAll<HTMLElement>(RIGHT_PANEL).forEach(clearRightCardSlide);
+}
+
 function syncRightSlide(aside: HTMLElement): void {
   const parent = aside.parentElement;
   if (parent?.dataset === undefined) return;
@@ -775,6 +806,7 @@ export function readRightShelfDepth(doc: Document, shelf: HTMLElement): number {
 
 export function syncSidebarDepth(doc: Document): number {
   syncChatScreen(doc);
+  if (!desktopCardLayout) clearRightCardSlides(doc);
   if (prefersReducedMotion(doc)) return 0;
   let count = 0;
   doc.querySelectorAll<HTMLElement>('[data-sidebar="panel"]').forEach((panel) => {
@@ -786,9 +818,10 @@ export function syncSidebarDepth(doc: Document): number {
     if (pin) aside.dataset[RIGHT_PIN] = "";
     else delete aside.dataset[RIGHT_PIN];
     applyRightDepth(aside, readRightDepth(aside), pin);
+    count += 1;
+    if (!desktopCardLayout) return;
     rememberRightCardWidth(aside);
     syncRightSlide(aside);
-    count += 1;
   });
   let shelfProgress = 0;
   doc.querySelectorAll<HTMLElement>(RIGHT_SHELF).forEach((shelf) => {
@@ -815,7 +848,9 @@ export function injectSidebarDepth(
   style.id = STYLE_ID;
   const view = doc.defaultView;
   const apply = (enabled: boolean): void => {
+    setDesktopCardLayout(enabled);
     style.textContent = sidebarDepthCss(enabled);
+    syncSidebarDepth(doc);
   };
   apply(readDesktopLayoutEnabled(view?.localStorage, pluginId));
   doc.head.append(style);

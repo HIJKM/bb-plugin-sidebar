@@ -8,6 +8,7 @@ import {
   isSidebarMotionTarget,
   injectSidebarDepth,
   sidebarDepthCss,
+  setDesktopCardLayout,
   mobileShelfProgress,
   nextSidebarPhase,
   blurComposerCaret,
@@ -54,6 +55,15 @@ describe("tracksSlideGeometry", () => {
       }),
       true,
     );
+  });
+
+  it("follows desktop geometry again when the card layout is off", () => {
+    setDesktopCardLayout(false);
+    try {
+      assert.equal(tracksSlideGeometry({ getAttribute: () => null, matches: () => false }), true);
+    } finally {
+      setDesktopCardLayout(true);
+    }
   });
 });
 
@@ -261,6 +271,50 @@ describe("readRightDepth", () => {
     assert.equal(parent.dataset.bbMotionRightPhase, "leave");
     timers[2]();
     assert.equal(parent.dataset.bbMotionRightPhase, undefined);
+  });
+
+  it("drops the card slide when the card layout is off", () => {
+    setDesktopCardLayout(false);
+    try {
+      const parent = {
+        dataset: {
+          bbMotionRightWas: "open",
+          bbMotionRightPhase: "leave",
+        } as Record<string, string | undefined>,
+        getBoundingClientRect: () => ({ left: 800, right: 1080, width: 280, top: 0, bottom: 800 }),
+        style: {
+          props: new Map<string, string>([["--bb-motion-right-card-width", "280px"]]),
+          setProperty(name: string, value: string) {
+            this.props.set(name, value);
+          },
+          removeProperty(name: string) {
+            this.props.delete(name);
+          },
+        },
+      };
+      const aside = {
+        dataset: {} as Record<string, string | undefined>,
+        style: {
+          width: "",
+          setProperty() {},
+          removeProperty() {},
+        },
+        parentElement: parent,
+        getBoundingClientRect: () => ({ left: 800, right: 1080, width: 280 }),
+        getAttribute: () => null,
+      };
+      const doc = {
+        defaultView: null,
+        querySelectorAll: (selector: string) =>
+          selector === "[data-panel] > aside" ? [aside] : [],
+      };
+      syncSidebarDepth(doc as unknown as Document);
+      assert.equal(parent.dataset.bbMotionRightPhase, undefined);
+      assert.equal(parent.dataset.bbMotionRightWas, undefined);
+      assert.equal(parent.style.props.get("--bb-motion-right-card-width"), undefined);
+    } finally {
+      setDesktopCardLayout(true);
+    }
   });
 });
 
@@ -1280,8 +1334,13 @@ describe("sidebarDepthCss", () => {
     const off = sidebarDepthCss(false);
     assert.doesNotMatch(off, /@media \(min-width: 768px\)/);
     assert.doesNotMatch(off, /--bb-motion-card-face/);
+    assert.doesNotMatch(off, /offcanvas/);
+    assert.doesNotMatch(off, /bb-motion-right-phase/);
     assert.match(off, /@media \(max-width: 767px\)/);
-    assert.match(off, /@media \(prefers-reduced-motion: reduce\)/);
+    assert.match(
+      off,
+      /@media \(prefers-reduced-motion: reduce\) \{\s*\[data-sidebar="gap"\],\s*\[data-sidebar="panel"\],\s*\[data-panel\] > aside,\s*\[data-testid="secondary-panel-shelf"\],\s*\[data-sidebar="inset"\]\[data-bb-motion-chat-dim\] \{/,
+    );
     assert.match(sidebarDepthCss(true), /@media \(min-width: 768px\) and \(pointer: fine\)/);
     assert.doesNotMatch(sidebarDepthCss(true), /@media \(min-width: 768px\) \{/);
     assert.match(sidebarDepthCss(true), /--bb-motion-card-face: oklch\(0\.27 0 0\)/);
@@ -1309,6 +1368,7 @@ describe("injectSidebarDepth", () => {
           nodes.push(node as { id: string; textContent: string });
         },
       },
+      querySelectorAll: () => [],
     };
     const stop = injectSidebarDepth(doc as unknown as Document);
     assert.equal(nodes.length, 1);
