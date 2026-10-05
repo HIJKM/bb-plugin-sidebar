@@ -1,3 +1,11 @@
+import {
+  DESKTOP_LAYOUT_EVENT,
+  fetchDesktopLayoutEnabled,
+  readDesktopLayoutDetail,
+  readDesktopLayoutEnabled,
+  writeDesktopLayoutEnabled,
+} from "./desktop-layout.ts";
+
 const STYLE_ID = "bb-motion";
 const DEPTH_VAR = "--lite-sidebar-depth";
 const RIGHT_DEPTH_VAR = "--bb-motion-right-depth";
@@ -95,7 +103,7 @@ ${RIGHT_SHELF}[data-state="closed"] {
     transform: translateX(calc(var(--bb-motion-chat-dim) * 50%));
   }
 }
-@media (min-width: 768px) {
+@media (min-width: 768px) and (pointer: fine) {
   [data-side="left"] > [data-sidebar="panel"] {
     top: 10px;
     bottom: 10px;
@@ -165,6 +173,7 @@ ${RIGHT_SHELF}[data-state="closed"] {
   }
   .dark {
     --bb-motion-chat-canvas: oklch(0.17 0 0);
+    --bb-motion-card-face: oklch(0.27 0 0);
   }
   [data-side="left"] > [data-sidebar="gap"],
   [data-side="left"] > [data-sidebar="panel"],
@@ -186,6 +195,16 @@ ${RIGHT_SHELF}[data-state="closed"] {
     z-index: 21;
     border-left-color: transparent;
     overflow: clip;
+  }
+  .dark [data-side="left"] > [data-sidebar="panel"],
+  .dark [data-side="left"] .bg-sidebar,
+  .dark [data-panel]:has(> aside) > aside,
+  .dark [data-panel]:has(> aside) > aside .bg-sidebar {
+    background-color: var(--bb-motion-card-face) !important;
+  }
+  .dark [data-side="left"] > [data-sidebar="panel"],
+  .dark [data-panel]:has(> aside) > aside {
+    box-shadow: 0 12px 32px rgb(0 0 0 / 0.55);
   }
   [data-panel]:has(> aside) {
     overflow: visible !important;
@@ -294,6 +313,17 @@ ${RIGHT_SHELF}[data-state="closed"] {
   }
 }
 `;
+
+const DESKTOP_MEDIA = "@media (min-width: 768px) and (pointer: fine) {";
+const REDUCED_MEDIA = "@media (prefers-reduced-motion: reduce) {";
+
+export function sidebarDepthCss(desktopLayout: boolean): string {
+  if (desktopLayout) return SIDEBAR_DEPTH_CSS;
+  const start = SIDEBAR_DEPTH_CSS.indexOf(DESKTOP_MEDIA);
+  const reduced = SIDEBAR_DEPTH_CSS.indexOf(REDUCED_MEDIA);
+  if (start < 0 || reduced < start) return SIDEBAR_DEPTH_CSS;
+  return `${SIDEBAR_DEPTH_CSS.slice(0, start)}${SIDEBAR_DEPTH_CSS.slice(reduced)}`;
+}
 
 export function keepWatchingSlide(idleMs: number): boolean {
   return idleMs < SLIDE_MS;
@@ -762,15 +792,45 @@ export function syncSidebarDepth(doc: Document): number {
   return count;
 }
 
-export function injectSidebarDepth(doc: Document): () => void {
+export function injectSidebarDepth(
+  doc: Document,
+  options: { pluginId?: string } = {},
+): () => void {
+  const pluginId = options.pluginId ?? "sidebar";
   const existing = doc.getElementById(STYLE_ID);
   existing?.remove();
   const style = doc.createElement("style");
   style.id = STYLE_ID;
-  style.textContent = SIDEBAR_DEPTH_CSS;
+  const view = doc.defaultView;
+  const apply = (enabled: boolean): void => {
+    style.textContent = sidebarDepthCss(enabled);
+  };
+  apply(readDesktopLayoutEnabled(view?.localStorage, pluginId));
   doc.head.append(style);
+  let revision = 0;
+  const onLayout = (event: Event): void => {
+    const detail = readDesktopLayoutDetail(Reflect.get(event, "detail"));
+    if (detail === null || detail.pluginId !== pluginId) return;
+    revision += 1;
+    writeDesktopLayoutEnabled(view?.localStorage, pluginId, detail.enabled);
+    apply(detail.enabled);
+  };
+  view?.addEventListener?.(DESKTOP_LAYOUT_EVENT, onLayout);
+  const token = revision;
+  const fetchImpl = view?.fetch?.bind(view);
+  if (fetchImpl !== undefined) {
+    void fetchDesktopLayoutEnabled(pluginId, fetchImpl)
+      .then((enabled) => {
+        if (enabled === null || revision !== token) return;
+        writeDesktopLayoutEnabled(view?.localStorage, pluginId, enabled);
+        apply(enabled);
+      })
+      .catch(() => {});
+  }
   const stopTrack = trackSidebarDepth(doc);
   return () => {
+    revision += 1;
+    view?.removeEventListener?.(DESKTOP_LAYOUT_EVENT, onLayout);
     stopTrack();
     style.remove();
   };

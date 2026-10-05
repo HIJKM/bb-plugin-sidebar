@@ -7,6 +7,7 @@ import {
   applySidebarDepth,
   isSidebarMotionTarget,
   injectSidebarDepth,
+  sidebarDepthCss,
   mobileShelfProgress,
   nextSidebarPhase,
   blurComposerCaret,
@@ -441,7 +442,7 @@ function assertSlideInFromHalfway(css: string): void {
   assert.match(css, /brightness\(calc\(0\.7 \+ var\(--lite-sidebar-depth\) \* 0\.3\)\)/);
   assert.doesNotMatch(css, /brightness\(calc\(0\.7 \+ var\(--bb-motion-right-depth\) \* 0\.3\)\)/);
   assert.doesNotMatch(css, /perspective\(/);
-  const desktop = mediaBody(css, "(min-width: 768px)");
+  const desktop = mediaBody(css, "(min-width: 768px) and (pointer: fine)");
   assert.doesNotMatch(css, /scale\(/);
   assert.match(desktop, /translateX\(0\)/);
   assert.match(desktop, /translateX\(-100%\)/);
@@ -508,10 +509,22 @@ function assertSlideInFromHalfway(css: string): void {
   );
   assert.doesNotMatch(mediaBody(css, "(max-width: 767px)"), /sidebar-resize-handle/);
   assert.match(desktop, /:root \{\s*--bb-motion-chat-canvas: oklch\(0\.97 0 0\);\s*\}/);
-  assert.match(desktop, /\.dark \{\s*--bb-motion-chat-canvas: oklch\(0\.17 0 0\);\s*\}/);
+  assert.match(
+    desktop,
+    /\.dark \{\s*--bb-motion-chat-canvas: oklch\(0\.17 0 0\);\s*--bb-motion-card-face: oklch\(0\.27 0 0\);\s*\}/,
+  );
   assert.match(
     desktop,
     /\[data-side="left"\] > \[data-sidebar="gap"\],\s*\[data-side="left"\] > \[data-sidebar="panel"\],\s*\[data-side="left"\] \.bg-sidebar,\s*\[data-panel\]:has\(> aside\),\s*\[data-panel\]:has\(> aside\) > aside,\s*\[data-panel\]:has\(> aside\) > aside \.bg-sidebar \{\s*background-color: var\(--bb-motion-chat-canvas\) !important;\s*\}/,
+  );
+  assert.match(
+    desktop,
+    /\.dark \[data-side="left"\] > \[data-sidebar="panel"\],\s*\.dark \[data-side="left"\] \.bg-sidebar,\s*\.dark \[data-panel\]:has\(> aside\) > aside,\s*\.dark \[data-panel\]:has\(> aside\) > aside \.bg-sidebar \{\s*background-color: var\(--bb-motion-card-face\) !important;\s*\}/,
+  );
+  assert.doesNotMatch(desktop, /\.dark \[data-side="left"\] > \[data-sidebar="gap"\]/);
+  assert.match(
+    desktop,
+    /\.dark \[data-side="left"\] > \[data-sidebar="panel"\],\s*\.dark \[data-panel\]:has\(> aside\) > aside \{\s*box-shadow: 0 12px 32px rgb\(0 0 0 \/ 0\.55\);\s*\}/,
   );
   assert.doesNotMatch(desktop, /backdrop-filter/);
   assert.doesNotMatch(desktop, /\[data-sidebar="sidebar"\]/);
@@ -1250,6 +1263,19 @@ describe("postSlideHaptic", () => {
   });
 });
 
+describe("sidebarDepthCss", () => {
+  it("keeps the narrow-screen drawer and drops the desktop card when the layout is off", () => {
+    const off = sidebarDepthCss(false);
+    assert.doesNotMatch(off, /@media \(min-width: 768px\)/);
+    assert.doesNotMatch(off, /--bb-motion-card-face/);
+    assert.match(off, /@media \(max-width: 767px\)/);
+    assert.match(off, /@media \(prefers-reduced-motion: reduce\)/);
+    assert.match(sidebarDepthCss(true), /@media \(min-width: 768px\) and \(pointer: fine\)/);
+    assert.doesNotMatch(sidebarDepthCss(true), /@media \(min-width: 768px\) \{/);
+    assert.match(sidebarDepthCss(true), /--bb-motion-card-face: oklch\(0\.27 0 0\)/);
+  });
+});
+
 describe("injectSidebarDepth", () => {
   it("writes a position-driven stylesheet and removes it on cleanup", () => {
     const nodes: { id: string; textContent: string }[] = [];
@@ -1281,5 +1307,55 @@ describe("injectSidebarDepth", () => {
     assertSlideInFromHalfway(nodes[0].textContent);
     stop();
     assert.equal(nodes.length, 0);
+  });
+
+  it("omits the desktop card when the stored layout is off and restores it from the event", () => {
+    const values = new Map<string, string>([["sidebar:desktop-layout", "off"]]);
+    const listeners = new Map<string, (event: Event) => void>();
+    const nodes: { id: string; textContent: string }[] = [];
+    const doc = {
+      getElementById: (id: string) => nodes.find((node) => node.id === id) ?? null,
+      createElement: () => {
+        const node = {
+          id: "",
+          textContent: "",
+          remove() {
+            const index = nodes.indexOf(node);
+            if (index >= 0) nodes.splice(index, 1);
+          },
+        };
+        return node;
+      },
+      head: {
+        append(node: { id: string }) {
+          nodes.push(node as { id: string; textContent: string });
+        },
+      },
+      defaultView: {
+        localStorage: {
+          getItem: (name: string) => values.get(name) ?? null,
+          setItem: (name: string, value: string) => values.set(name, value),
+        },
+        addEventListener: (type: string, listener: (event: Event) => void) => {
+          listeners.set(type, listener);
+        },
+        removeEventListener: (type: string) => {
+          listeners.delete(type);
+        },
+      },
+      querySelectorAll: () => [],
+    };
+    const stop = injectSidebarDepth(doc as unknown as Document, { pluginId: "sidebar" });
+    assert.doesNotMatch(nodes[0]?.textContent ?? "", /@media \(min-width: 768px\)/);
+    const other = new Event("bb-sidebar-desktop-layout");
+    Object.assign(other, { detail: { pluginId: "other", enabled: true } });
+    listeners.get("bb-sidebar-desktop-layout")?.(other);
+    assert.doesNotMatch(nodes[0]?.textContent ?? "", /@media \(min-width: 768px\)/);
+    const event = new Event("bb-sidebar-desktop-layout");
+    Object.assign(event, { detail: { pluginId: "sidebar", enabled: true } });
+    listeners.get("bb-sidebar-desktop-layout")?.(event);
+    assert.match(nodes[0]?.textContent ?? "", /@media \(min-width: 768px\)/);
+    stop();
+    assert.equal(listeners.size, 0);
   });
 });
