@@ -158,7 +158,7 @@ ${RIGHT_SHELF}[data-state="closed"] {
     width: 4px !important;
     height: 32px !important;
     border-radius: 999px;
-    background: white !important;
+    background: var(--sidebar-foreground) !important;
     opacity: 0;
     transform: translate(-50%, -50%) !important;
     pointer-events: none;
@@ -168,25 +168,16 @@ ${RIGHT_SHELF}[data-state="closed"] {
   [data-side="left"]:not([data-collapsible="offcanvas"]) [data-testid$="-sidebar-resize-handle"]:active::before {
     opacity: 1;
   }
-  :root {
-    --bb-motion-chat-canvas: oklch(0.97 0 0);
-  }
-  .dark {
-    --bb-motion-chat-canvas: oklch(0.17 0 0);
-    --bb-motion-card-face: oklch(0.27 0 0);
-  }
+  /* The gutter and card share the host sidebar tone. Only the shell is cleared;
+     nested surfaces (tabs, sticky headers, plugin content) own their paint. */
   [data-side="left"] > [data-sidebar="gap"],
   [data-panel]:has(> aside) {
-    background-color: var(--bb-motion-chat-canvas) !important;
+    background-color: var(--sidebar) !important;
   }
   [data-side="left"] > [data-sidebar="panel"],
-  [data-side="left"] .bg-sidebar,
-  [data-panel]:has(> aside) > aside,
-  [data-panel]:has(> aside) > aside .bg-sidebar {
+  [data-side="left"] > [data-sidebar="panel"] > [data-sidebar="sidebar"],
+  [data-panel]:has(> aside) > aside {
     background-color: transparent !important;
-  }
-  [data-side="left"] > [data-sidebar="panel"] [data-sidebar="footer"] > [data-overflow-fade="above"][data-overflow-fade-tone="sidebar"] {
-    background-image: none !important;
   }
   [data-side="left"] > [data-sidebar="panel"]::before,
   [data-panel]:has(> aside) > aside::before {
@@ -196,7 +187,7 @@ ${RIGHT_SHELF}[data-state="closed"] {
     z-index: -1;
     border-radius: inherit;
     pointer-events: none;
-    background-color: oklch(0.97 0 0 / 0.62);
+    background-color: color-mix(in srgb, var(--sidebar) 62%, transparent);
     backdrop-filter: blur(24px) saturate(1.5);
     -webkit-backdrop-filter: blur(24px) saturate(1.5);
   }
@@ -212,10 +203,6 @@ ${RIGHT_SHELF}[data-state="closed"] {
     z-index: 21;
     border-left-color: transparent;
     overflow: clip;
-  }
-  .dark [data-side="left"] > [data-sidebar="panel"]::before,
-  .dark [data-panel]:has(> aside) > aside::before {
-    background-color: oklch(0.27 0 0 / 0.62);
   }
   .dark [data-side="left"] > [data-sidebar="panel"],
   .dark [data-panel]:has(> aside) > aside {
@@ -257,7 +244,7 @@ ${RIGHT_SHELF}[data-state="closed"] {
     width: 4px;
     height: 32px;
     border-radius: 999px;
-    background: white;
+    background: var(--sidebar-foreground);
     opacity: 0;
     transform: translate(-50%, -50%);
     pointer-events: none;

@@ -522,7 +522,7 @@ function assertSlideInFromHalfway(css: string): void {
   assert.doesNotMatch(css.match(/\[data-testid="secondary-panel-shelf"\] \{[^}]*\}/)?.[0] ?? "", /transform:/);
   assert.doesNotMatch(css, /z-index:\s*35/);
   const aside =
-    css.match(/\[data-panel\] > aside \{[^}]*\}/)?.[0] ?? "";
+    css.match(/\[data-panel\] > aside \{\s*top:[^}]*\}/)?.[0] ?? "";
   assert.doesNotMatch(aside, /filter:/);
   assert.doesNotMatch(css, /style\*="220ms"/);
   assert.doesNotMatch(css, /data-bb-motion-pin/);
@@ -562,41 +562,22 @@ function assertSlideInFromHalfway(css: string): void {
     /\[data-side="left"\]:not\(\[data-collapsible="offcanvas"\]\) \[data-testid\$="-sidebar-resize-handle"\] \{\s*position: fixed !important;\s*position-anchor: --bb-motion-left-column;\s*left: calc\(anchor\(right\) - 6px\) !important;\s*right: auto !important;\s*top: anchor\(top\) !important;\s*bottom: anchor\(bottom\) !important;\s*height: auto !important;\s*\}/,
   );
   assert.doesNotMatch(mediaBody(css, "(max-width: 767px)"), /sidebar-resize-handle/);
-  assert.match(desktop, /:root \{\s*--bb-motion-chat-canvas: oklch\(0\.97 0 0\);\s*\}/);
-  assert.match(
-    desktop,
-    /\.dark \{\s*--bb-motion-chat-canvas: oklch\(0\.17 0 0\);\s*--bb-motion-card-face: oklch\(0\.27 0 0\);\s*\}/,
-  );
-  assert.match(
-    desktop,
-    /\[data-side="left"\] > \[data-sidebar="gap"\],\s*\[data-panel\]:has\(> aside\) \{\s*background-color: var\(--bb-motion-chat-canvas\) !important;\s*\}/,
-  );
-  assert.match(
-    desktop,
-    /\[data-side="left"\] > \[data-sidebar="panel"\],\s*\[data-side="left"\] \.bg-sidebar,\s*\[data-panel\]:has\(> aside\) > aside,\s*\[data-panel\]:has\(> aside\) > aside \.bg-sidebar \{\s*background-color: transparent !important;\s*\}/,
-  );
-  assert.match(
-    desktop,
-    /\[data-side="left"\] > \[data-sidebar="panel"\]::before,\s*\[data-panel\]:has\(> aside\) > aside::before \{\s*content: "";\s*position: absolute;\s*inset: 0;\s*z-index: -1;\s*border-radius: inherit;\s*pointer-events: none;\s*background-color: oklch\(0\.97 0 0 \/ 0\.62\);\s*backdrop-filter: blur\(24px\) saturate\(1\.5\);\s*-webkit-backdrop-filter: blur\(24px\) saturate\(1\.5\);\s*\}/,
-  );
-  assert.match(
-    desktop,
-    /\.dark \[data-side="left"\] > \[data-sidebar="panel"\]::before,\s*\.dark \[data-panel\]:has\(> aside\) > aside::before \{\s*background-color: oklch\(0\.27 0 0 \/ 0\.62\);\s*\}/,
-  );
-  assert.doesNotMatch(
-    desktop,
-    /\.dark \[data-side="left"\] > \[data-sidebar="panel"\],\s*\.dark \[data-side="left"\] \.bg-sidebar,\s*\.dark \[data-panel\]:has\(> aside\) > aside,\s*\.dark \[data-panel\]:has\(> aside\) > aside \.bg-sidebar \{\s*background-color: var\(--bb-motion-card-face\) !important;\s*\}/,
-  );
+  assert.doesNotMatch(desktop, /--bb-motion-chat-canvas|--bb-motion-card-face|oklch/);
+  assert.match(desktop, /background-color: var\(--sidebar\) !important/);
+  assert.doesNotMatch(desktop, /\[data-side="left"\] \.bg-sidebar/);
+  assert.match(desktop, /\[data-sidebar="panel"\] > \[data-sidebar="sidebar"\]/);
+  assert.match(desktop, /background-color: color-mix\(in srgb, var\(--sidebar\) 62%, transparent\)/);
+  assert.doesNotMatch(desktop, /background-image: none/);
   assert.doesNotMatch(desktop, /\.dark \[data-side="left"\] > \[data-sidebar="gap"\]/);
   assert.match(
     desktop,
     /\.dark \[data-side="left"\] > \[data-sidebar="panel"\],\s*\.dark \[data-panel\]:has\(> aside\) > aside \{\s*box-shadow: 0 12px 32px rgb\(0 0 0 \/ 0\.55\);\s*\}/,
   );
   assert.match(desktop, /backdrop-filter: blur\(24px\) saturate\(1\.5\)/);
-  assert.doesNotMatch(desktop, /\[data-sidebar="sidebar"\]/);
+
   assert.match(
     desktop,
-    /\[data-side="left"\]:not\(\[data-collapsible="offcanvas"\]\) \[data-testid\$="-sidebar-resize-handle"\]::before \{\s*content: "";\s*top: 50% !important;\s*right: auto !important;\s*bottom: auto !important;\s*left: 50% !important;\s*width: 4px !important;\s*height: 32px !important;\s*border-radius: 999px;\s*background: white !important;\s*opacity: 0;\s*transform: translate\(-50%, -50%\) !important;\s*pointer-events: none;\s*transition: opacity 120ms linear;\s*\}/,
+    /\[data-side="left"\]:not\(\[data-collapsible="offcanvas"\]\) \[data-testid\$="-sidebar-resize-handle"\]::before \{\s*content: "";\s*top: 50% !important;\s*right: auto !important;\s*bottom: auto !important;\s*left: 50% !important;\s*width: 4px !important;\s*height: 32px !important;\s*border-radius: 999px;\s*background: var\(--sidebar-foreground\) !important;\s*opacity: 0;\s*transform: translate\(-50%, -50%\) !important;\s*pointer-events: none;\s*transition: opacity 120ms linear;\s*\}/,
   );
   assert.match(
     desktop,
@@ -608,7 +589,7 @@ function assertSlideInFromHalfway(css: string): void {
   assert.match(openLeft, /filter: none/);
   assert.doesNotMatch(mediaBody(css, "(max-width: 767px)"), /backdrop-filter/);
   const rightAside =
-    desktop.match(/\[data-panel\]:has\(> aside\) > aside \{[^}]*\}/)?.[0] ?? "";
+    desktop.match(/\[data-panel\]:has\(> aside\) > aside \{\s*top:[^}]*\}/)?.[0] ?? "";
   assert.match(
     rightAside,
     /top: 10px;\s*bottom: 10px;\s*width: calc\(100% - 20px\) !important;\s*height: auto;\s*margin-left: 10px;\s*border-radius: 20px;\s*corner-shape: squircle;\s*box-shadow: 0 12px 32px rgb\(0 0 0 \/ 0\.16\);\s*z-index: 21;\s*border-left-color: transparent;\s*overflow: clip;/,
@@ -621,7 +602,7 @@ function assertSlideInFromHalfway(css: string): void {
   );
   assert.match(
     desktop,
-    /#thread-detail-secondary-panel-handle > \[data-panel-resize-hit-target\]::before \{\s*content: "";\s*position: absolute;\s*top: 50%;\s*left: 50%;\s*width: 4px;\s*height: 32px;\s*border-radius: 999px;\s*background: white;\s*opacity: 0;\s*transform: translate\(-50%, -50%\);\s*pointer-events: none;\s*transition: opacity 120ms linear;\s*\}/,
+    /#thread-detail-secondary-panel-handle > \[data-panel-resize-hit-target\]::before \{\s*content: "";\s*position: absolute;\s*top: 50%;\s*left: 50%;\s*width: 4px;\s*height: 32px;\s*border-radius: 999px;\s*background: var\(--sidebar-foreground\);\s*opacity: 0;\s*transform: translate\(-50%, -50%\);\s*pointer-events: none;\s*transition: opacity 120ms linear;\s*\}/,
   );
   assert.match(
     desktop,
@@ -1343,7 +1324,7 @@ describe("sidebarDepthCss", () => {
     );
     assert.match(sidebarDepthCss(true), /@media \(min-width: 768px\) and \(pointer: fine\)/);
     assert.doesNotMatch(sidebarDepthCss(true), /@media \(min-width: 768px\) \{/);
-    assert.match(sidebarDepthCss(true), /--bb-motion-card-face: oklch\(0\.27 0 0\)/);
+    assert.match(sidebarDepthCss(true), /color-mix\(in srgb, var\(--sidebar\) 62%, transparent\)/);
   });
 });
 
