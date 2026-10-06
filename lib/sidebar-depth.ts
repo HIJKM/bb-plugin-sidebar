@@ -5,6 +5,16 @@ import {
   readDesktopLayoutEnabled,
   writeDesktopLayoutEnabled,
 } from "./desktop-layout.ts";
+import {
+  SIDEBAR_CHROME_EVENT,
+  DEFAULT_SIDEBAR_CHROME,
+  clearSidebarChrome,
+  readSidebarChrome,
+  usesDesktopCard,
+  usesPhoneShelf,
+  writeSidebarChrome,
+  type SidebarChrome,
+} from "./sidebar-chrome.ts";
 
 const STYLE_ID = "bb-motion";
 const DEPTH_VAR = "--lite-sidebar-depth";
@@ -47,7 +57,7 @@ const SIDEBAR_DEPTH_CSS = `
     visibility 0s linear 0s !important;
   visibility: visible !important;
 }
-[data-sidebar="panel"][data-vaul-drawer-direction="left"] {
+:where(:root[data-bb-sidebar-phone]) [data-sidebar="panel"][data-vaul-drawer-direction="left"] {
   transform: translateX(calc((1 - var(${DEPTH_VAR})) * -50%));
 }
 [data-sidebar="panel"][data-lite-sidebar-parked] {
@@ -70,7 +80,8 @@ ${RIGHT_SHELF}[data-state="closed"] {
   visibility: hidden !important;
   transition: visibility 0s linear ${SLIDE_MS}ms !important;
 }
-@media (max-width: 767px) {
+/* bb-sidebar-phone-shelf */
+@media --bb-sidebar-phone {
   [data-sidebar="inset"][data-bb-motion-screen] {
     border-radius: 55px;
     overflow: clip;
@@ -103,7 +114,8 @@ ${RIGHT_SHELF}[data-state="closed"] {
     transform: translateX(calc(var(--bb-motion-chat-dim) * 50%));
   }
 }
-@media (min-width: 768px) and (pointer: fine) {
+/* bb-sidebar-desktop-card */
+@media --bb-sidebar-desktop {
   [data-side="left"] > [data-sidebar="panel"] {
     top: 10px;
     bottom: 10px;
@@ -316,7 +328,7 @@ ${RIGHT_SHELF}[data-state="closed"] {
 }
 `;
 
-const DESKTOP_MEDIA = "@media (min-width: 768px) and (pointer: fine) {";
+const DESKTOP_MEDIA = "/* bb-sidebar-desktop-card */";
 const LEGACY_REDUCED_CSS = `@media (prefers-reduced-motion: reduce) {
   [data-sidebar="gap"],
   [data-sidebar="panel"],
@@ -337,11 +349,13 @@ export function setDesktopCardLayout(enabled: boolean): void {
   desktopCardLayout = enabled;
 }
 
-export function sidebarDepthCss(desktopLayout: boolean): string {
-  if (desktopLayout) return SIDEBAR_DEPTH_CSS;
-  const start = SIDEBAR_DEPTH_CSS.indexOf(DESKTOP_MEDIA);
-  if (start < 0) return SIDEBAR_DEPTH_CSS;
-  return `${SIDEBAR_DEPTH_CSS.slice(0, start)}${LEGACY_REDUCED_CSS}`;
+export function sidebarDepthCss(desktopLayout: boolean, chrome: SidebarChrome = DEFAULT_SIDEBAR_CHROME): string {
+  const css = SIDEBAR_DEPTH_CSS
+    .replace("@media --bb-sidebar-phone", usesPhoneShelf(chrome) ? "@media all" : "@media not all")
+    .replace("@media --bb-sidebar-desktop", usesDesktopCard(chrome) ? "@media all" : "@media not all");
+  if (desktopLayout) return css;
+  const start = css.indexOf(DESKTOP_MEDIA);
+  return `${css.slice(0, start)}${LEGACY_REDUCED_CSS}`;
 }
 
 export function keepWatchingSlide(idleMs: number): boolean {
@@ -351,7 +365,10 @@ export function keepWatchingSlide(idleMs: number): boolean {
 export function tracksSlideGeometry(element: {
   getAttribute?: (name: string) => string | null;
   matches?: (selector: string) => boolean;
-}): boolean {
+}, chrome: SidebarChrome = DEFAULT_SIDEBAR_CHROME): boolean {
+  if (chrome.device !== "phone") {
+    return !desktopCardLayout || !usesDesktopCard(chrome);
+  }
   if (element.matches?.(RIGHT_SHELF) === true) return true;
   if (element.getAttribute?.("data-vaul-drawer-direction") != null) return true;
   return !desktopCardLayout;
@@ -702,7 +719,7 @@ export function applySidebarDepth(panel: HTMLElement, progress: number): void {
 }
 
 export function readSidebarDepth(doc: Document, panel: HTMLElement): number {
-  if (panel.getAttribute("data-vaul-drawer-direction") !== null) {
+  if (readSidebarChrome(doc).device === "phone" && panel.getAttribute("data-vaul-drawer-direction") !== null) {
     const inset = doc.querySelector<HTMLElement>('[data-sidebar="inset"]');
     const width = panel.getBoundingClientRect().width;
     if (inset === null) {
@@ -806,8 +823,10 @@ export function readRightShelfDepth(doc: Document, shelf: HTMLElement): number {
 }
 
 export function syncSidebarDepth(doc: Document): number {
+  const chrome = readSidebarChrome(doc);
+  const desktopCard = desktopCardLayout && usesDesktopCard(chrome);
   syncChatScreen(doc);
-  if (!desktopCardLayout) clearRightCardSlides(doc);
+  if (!desktopCard) clearRightCardSlides(doc);
   if (prefersReducedMotion(doc)) return 0;
   let count = 0;
   doc.querySelectorAll<HTMLElement>('[data-sidebar="panel"]').forEach((panel) => {
@@ -820,12 +839,13 @@ export function syncSidebarDepth(doc: Document): number {
     else delete aside.dataset[RIGHT_PIN];
     applyRightDepth(aside, readRightDepth(aside), pin);
     count += 1;
-    if (!desktopCardLayout) return;
+    if (!desktopCard) return;
     rememberRightCardWidth(aside);
     syncRightSlide(aside);
   });
   let shelfProgress = 0;
   doc.querySelectorAll<HTMLElement>(RIGHT_SHELF).forEach((shelf) => {
+    if (chrome.device !== "phone") return;
     const progress = readRightShelfDepth(doc, shelf);
     shelfProgress = Math.max(shelfProgress, progress);
     applyRightDepth(shelf, progress, false);
@@ -833,14 +853,14 @@ export function syncSidebarDepth(doc: Document): number {
   });
   if (typeof doc.querySelector === "function") {
     const inset = doc.querySelector<HTMLElement>('[data-sidebar="inset"]');
-    if (inset !== null) applyChatDim(inset, isCompactViewport(doc) ? shelfProgress : 0);
+    if (inset !== null) applyChatDim(inset, usesPhoneShelf(chrome) ? shelfProgress : 0);
   }
   return count;
 }
 
 export function injectSidebarDepth(
   doc: Document,
-  options: { pluginId?: string } = {},
+  options: { pluginId?: string; chrome?: SidebarChrome } = {},
 ): () => void {
   const pluginId = options.pluginId ?? "sidebar";
   const existing = doc.getElementById(STYLE_ID);
@@ -848,9 +868,10 @@ export function injectSidebarDepth(
   const style = doc.createElement("style");
   style.id = STYLE_ID;
   const view = doc.defaultView;
+  writeSidebarChrome(doc, options.chrome ?? readSidebarChrome(doc));
   const apply = (enabled: boolean): void => {
     setDesktopCardLayout(enabled);
-    style.textContent = sidebarDepthCss(enabled);
+    style.textContent = sidebarDepthCss(enabled, readSidebarChrome(doc));
     syncSidebarDepth(doc);
   };
   apply(readDesktopLayoutEnabled(view?.localStorage, pluginId));
@@ -864,6 +885,12 @@ export function injectSidebarDepth(
     apply(detail.enabled);
   };
   view?.addEventListener?.(DESKTOP_LAYOUT_EVENT, onLayout);
+  const onChrome = (): void => {
+    finger = null;
+    heldHaptics = [];
+    apply(desktopCardLayout);
+  };
+  view?.addEventListener?.(SIDEBAR_CHROME_EVENT, onChrome);
   const token = revision;
   const fetchImpl = view?.fetch?.bind(view);
   if (fetchImpl !== undefined) {
@@ -879,8 +906,10 @@ export function injectSidebarDepth(
   return () => {
     revision += 1;
     view?.removeEventListener?.(DESKTOP_LAYOUT_EVENT, onLayout);
+    view?.removeEventListener?.(SIDEBAR_CHROME_EVENT, onChrome);
     stopTrack();
     style.remove();
+    clearSidebarChrome(doc);
   };
 }
 
@@ -1077,7 +1106,7 @@ function clearChatScreen(doc: Document): void {
 function snapshot(doc: Document): string {
   const left = Array.from(doc.querySelectorAll<HTMLElement>('[data-sidebar="panel"]'))
     .map((panel) => {
-      if (!tracksSlideGeometry(panel)) {
+      if (!tracksSlideGeometry(panel, readSidebarChrome(doc))) {
         const shell = panel.parentElement;
         return `${shell?.getAttribute("data-collapsible") ?? ""}:${shell?.getAttribute("data-state") ?? ""}`;
       }
@@ -1087,11 +1116,11 @@ function snapshot(doc: Document): string {
     .join("|");
   const right = Array.from(doc.querySelectorAll<HTMLElement>(`${RIGHT_PANEL}, ${RIGHT_SHELF}`))
     .map((panel) => {
-      if (!tracksSlideGeometry(panel)) {
+      if (!tracksSlideGeometry(panel, readSidebarChrome(doc))) {
         return `${panel.getAttribute("aria-hidden") ?? ""}:${panel.parentElement?.getAttribute("data-bb-motion-right-phase") ?? ""}`;
       }
       const box = panel.getBoundingClientRect();
-      const depth = panel.matches(RIGHT_SHELF)
+      const depth = readSidebarChrome(doc).device === "phone" && panel.matches(RIGHT_SHELF)
         ? readRightShelfDepth(doc, panel)
         : readRightDepth(panel);
       return `${box.left}:${box.width}:${depth.toFixed(3)}`;
@@ -1195,7 +1224,7 @@ function readScreenSample(doc: Document, inset: HTMLElement): {
 }
 
 function trackFingerDown(doc: Document, event: Event): void {
-  if (!isCompactViewport(doc) || prefersReducedMotion(doc)) return;
+  if (!usesPhoneShelf(readSidebarChrome(doc)) || prefersReducedMotion(doc)) return;
   const point = eventPoint(event);
   if (point === null) return;
   if (event.type === "pointerdown" && point.button !== 0) return;
@@ -1244,7 +1273,7 @@ function trackFingerUp(doc: Document, event: Event): void {
   const held = heldHaptics;
   finger = null;
   heldHaptics = [];
-  if (!isCompactViewport(doc) || prefersReducedMotion(doc)) return;
+  if (!usesPhoneShelf(readSidebarChrome(doc)) || prefersReducedMotion(doc)) return;
   primeSidebarPhase(doc);
   const decision = sidebarFingerRelease(sidebarPhase, release, held);
   const now = eventNow(doc);
@@ -1322,10 +1351,6 @@ function expireSuppress(nowMs: number): void {
 
 function eventNow(doc: Document): number {
   return doc.defaultView?.performance?.now?.() ?? Date.now();
-}
-
-function isCompactViewport(doc: Document): boolean {
-  return doc.defaultView?.matchMedia?.("(max-width: 767px)").matches === true;
 }
 
 function sameFinger(point: FingerPoint): boolean {

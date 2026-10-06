@@ -13,6 +13,8 @@ import {
   writeDesktopLayoutEnabled,
 } from "./lib/desktop-layout";
 import { injectSidebarDepth } from "./lib/sidebar-depth";
+import { SIDEBAR_CHROME_EVENT, writeSidebarChrome } from "./lib/sidebar-chrome";
+import { useDeviceChrome } from "./lib/use-device";
 
 function publishDesktopLayout(pluginId: string, enabled: boolean): void {
   writeDesktopLayoutEnabled(window.localStorage, pluginId, enabled);
@@ -22,9 +24,14 @@ function publishDesktopLayout(pluginId: string, enabled: boolean): void {
 }
 
 function DesktopLayoutBridge() {
+  const { device, orientation, viewport, hitTarget } = useDeviceChrome();
   const pluginId = experimental_usePluginId();
   const { values, isLoading } = useSettings();
   const enabled = values?.[DESKTOP_LAYOUT_SETTING];
+  useEffect(() => {
+    writeSidebarChrome(document, { device, orientation, viewport, hitTarget });
+    window.dispatchEvent(new Event(SIDEBAR_CHROME_EVENT));
+  }, [device, orientation, viewport, hitTarget]);
   useRealtime(DESKTOP_LAYOUT_CHANNEL, (payload) => {
     if (payload === null || typeof payload !== "object") return;
     const next = Reflect.get(payload, "enabled");
