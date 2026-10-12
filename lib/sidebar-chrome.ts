@@ -17,8 +17,26 @@ export function usesPhoneShelf(chrome: SidebarChrome): boolean {
   return chrome.device === "phone" && chrome.viewport === "narrow";
 }
 
+/** Phone open/close haptics, including landscape where the shelf and desktop card stay off. */
+export function usesPhoneHaptic(chrome: SidebarChrome): boolean {
+  return chrome.device === "phone";
+}
+
 export function usesDesktopCard(chrome: SidebarChrome): boolean {
   return chrome.device === "desktop" && chrome.viewport !== "narrow";
+}
+
+export function readSidebarChromeDetail(detail: unknown): SidebarChrome | null {
+  if (detail === null || typeof detail !== "object") return null;
+  const device = Reflect.get(detail, "device");
+  const orientation = Reflect.get(detail, "orientation");
+  const viewport = Reflect.get(detail, "viewport");
+  const hitTarget = Reflect.get(detail, "hitTarget");
+  if (device !== "phone" && device !== "tablet" && device !== "desktop") return null;
+  if (orientation !== "portrait" && orientation !== "landscape") return null;
+  if (viewport !== "narrow" && viewport !== "medium" && viewport !== "wide") return null;
+  if (hitTarget !== "large" && hitTarget !== "small") return null;
+  return { device, orientation, viewport, hitTarget };
 }
 
 export function readSidebarChrome(doc: Document): SidebarChrome {

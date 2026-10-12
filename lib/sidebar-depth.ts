@@ -6,11 +6,22 @@ import {
   writeDesktopLayoutEnabled,
 } from "./desktop-layout.ts";
 import {
+  applyRibbonPinAttribute,
+  fetchRibbonPinEnabled,
+  readRibbonPinDetail,
+  readRibbonPinEnabled,
+  RIBBON_PIN_ATTRIBUTE,
+  RIBBON_PIN_EVENT,
+  writeRibbonPinEnabled,
+} from "./ribbon-pin.ts";
+import {
   SIDEBAR_CHROME_EVENT,
   DEFAULT_SIDEBAR_CHROME,
   clearSidebarChrome,
   readSidebarChrome,
+  readSidebarChromeDetail,
   usesDesktopCard,
+  usesPhoneHaptic,
   usesPhoneShelf,
   writeSidebarChrome,
   type SidebarChrome,
@@ -146,13 +157,40 @@ ${RIGHT_SHELF}[data-state="closed"] {
       opacity ${SLIDE_MS}ms ${SLIDE_EASE},
       visibility 0s linear ${SLIDE_MS}ms !important;
   }
+  :root:not([data-bb-sidebar-ribbon-pin]) [data-collapsible="rail"][data-side="left"] > [data-sidebar="gap"] {
+    width: 0 !important;
+  }
+  :root:not([data-bb-sidebar-ribbon-pin]) [data-collapsible="rail"][data-side="left"] > [data-sidebar="panel"] {
+    width: calc(var(--sidebar-width) - 20px) !important;
+    transform: translateX(-100%);
+    opacity: 0;
+    pointer-events: none;
+    visibility: hidden !important;
+    transition:
+      transform ${SLIDE_MS}ms ${SLIDE_EASE},
+      opacity ${SLIDE_MS}ms ${SLIDE_EASE},
+      visibility 0s linear ${SLIDE_MS}ms !important;
+  }
+  [data-bb-sidebar-ribbon-pin] [data-collapsible="rail"][data-side="left"] > [data-sidebar="gap"] {
+    width: calc(2.5rem + 20px) !important;
+  }
+  [data-bb-sidebar-ribbon-pin] [data-collapsible="rail"][data-side="left"] > [data-sidebar="panel"] {
+    width: 2.5rem !important;
+    transform: none;
+    opacity: 1;
+    pointer-events: auto;
+    visibility: visible !important;
+  }
+  [data-bb-sidebar-ribbon-pin] [data-collapsible="rail"] [data-sidebar="sidebar"] > :not([data-bb-sidebar-ribbon]) {
+    display: none !important;
+  }
   [data-side="left"] {
     anchor-scope: --bb-motion-left-column;
   }
   [data-side="left"] > [data-sidebar="gap"] {
     anchor-name: --bb-motion-left-column;
   }
-  [data-side="left"]:not([data-collapsible="offcanvas"]) [data-testid$="-sidebar-resize-handle"] {
+  [data-side="left"]:not([data-collapsible="offcanvas"]):not([data-collapsible="rail"]) [data-testid$="-sidebar-resize-handle"] {
     position: fixed !important;
     position-anchor: --bb-motion-left-column;
     left: calc(anchor(right) - 6px) !important;
@@ -161,7 +199,7 @@ ${RIGHT_SHELF}[data-state="closed"] {
     bottom: anchor(bottom) !important;
     height: auto !important;
   }
-  [data-side="left"]:not([data-collapsible="offcanvas"]) [data-testid$="-sidebar-resize-handle"]::before {
+  [data-side="left"]:not([data-collapsible="offcanvas"]):not([data-collapsible="rail"]) [data-testid$="-sidebar-resize-handle"]::before {
     content: "";
     top: 50% !important;
     right: auto !important;
@@ -176,8 +214,8 @@ ${RIGHT_SHELF}[data-state="closed"] {
     pointer-events: none;
     transition: opacity 120ms linear;
   }
-  [data-side="left"]:not([data-collapsible="offcanvas"]) [data-testid$="-sidebar-resize-handle"]:hover::before,
-  [data-side="left"]:not([data-collapsible="offcanvas"]) [data-testid$="-sidebar-resize-handle"]:active::before {
+  [data-side="left"]:not([data-collapsible="offcanvas"]):not([data-collapsible="rail"]) [data-testid$="-sidebar-resize-handle"]:hover::before,
+  [data-side="left"]:not([data-collapsible="offcanvas"]):not([data-collapsible="rail"]) [data-testid$="-sidebar-resize-handle"]:active::before {
     opacity: 1;
   }
   /* The gutter and card share the host sidebar tone. Only the shell is cleared;
@@ -240,7 +278,7 @@ ${RIGHT_SHELF}[data-state="closed"] {
     margin-left: -8px !important;
     margin-right: -8px !important;
   }
-  .dark [data-side="left"]:not([data-collapsible="offcanvas"]) [data-testid$="-sidebar-resize-handle"]::before,
+  .dark [data-side="left"]:not([data-collapsible="offcanvas"]):not([data-collapsible="rail"]) [data-testid$="-sidebar-resize-handle"]::before,
   .dark #thread-detail-secondary-panel-handle > [data-panel-resize-hit-target]::before {
     background: var(--sidebar-border) !important;
   }
@@ -311,6 +349,12 @@ ${RIGHT_SHELF}[data-state="closed"] {
     transition: none !important;
   }
   [data-collapsible="offcanvas"][data-side="left"] > [data-sidebar="panel"] {
+    opacity: 0 !important;
+    visibility: hidden !important;
+    pointer-events: none;
+    transition: none !important;
+  }
+  :root:not([data-bb-sidebar-ribbon-pin]) [data-collapsible="rail"][data-side="left"] > [data-sidebar="panel"] {
     opacity: 0 !important;
     visibility: hidden !important;
     pointer-events: none;
@@ -434,22 +478,28 @@ export function readSidebarSide(sample: {
   translateX: number;
   sidebarShelf: string | null;
   panelShelf: string | null;
+  drawerOpen?: boolean;
 }): SidebarSide {
   if (sample.translateX > SCREEN_MOVE_PX) return "left";
   if (sample.translateX < -SCREEN_MOVE_PX) return "right";
-  if (sample.sidebarShelf === "open") return "left";
+  if (sample.sidebarShelf === "open" || sample.drawerOpen === true) return "left";
   if (sample.panelShelf === "shelf" || sample.panelShelf === "full") return "right";
   return "rest";
 }
 
 export function nextSidebarPhase(
   phase: SidebarPhase,
-  sample: { translateX: number; sidebarShelf: string | null; panelShelf: string | null },
+  sample: {
+    translateX: number;
+    sidebarShelf: string | null;
+    panelShelf: string | null;
+    drawerOpen?: boolean;
+  },
 ): { phase: SidebarPhase; haptics: SidebarHaptic[] } {
   const motion: SidebarSide =
     sample.translateX > SCREEN_MOVE_PX ? "left" : sample.translateX < -SCREEN_MOVE_PX ? "right" : "rest";
   const attr: SidebarSide =
-    sample.sidebarShelf === "open"
+    sample.sidebarShelf === "open" || sample.drawerOpen === true
       ? "left"
       : sample.panelShelf === "shelf" || sample.panelShelf === "full"
         ? "right"
@@ -565,6 +615,7 @@ export function readReleaseTarget(target: EventTarget | null): ReleaseTarget {
   if (element.closest('[data-testid="secondary-panel-shelf-dismiss"]') !== null) return "right-dismiss";
   if (element.closest("[data-sidebar-mobile-backdrop]") !== null) return "left-backdrop";
   if (element.closest(RIGHT_SHELF) !== null) return "right-shelf";
+  if (element.closest("[data-panel] > aside") !== null) return "right-shelf";
   if (element.closest('[data-sidebar="panel"]') !== null) return "left-panel";
   if (element.closest('[data-sidebar="inset"]') !== null) return "inset";
   return "other";
@@ -875,8 +926,10 @@ export function injectSidebarDepth(
     syncSidebarDepth(doc);
   };
   apply(readDesktopLayoutEnabled(view?.localStorage, pluginId));
+  applyRibbonPinAttribute(doc.documentElement, readRibbonPinEnabled(view?.localStorage, pluginId));
   doc.head.append(style);
   let revision = 0;
+  let pinRevision = 0;
   const onLayout = (event: Event): void => {
     const detail = readDesktopLayoutDetail(Reflect.get(event, "detail"));
     if (detail === null || detail.pluginId !== pluginId) return;
@@ -885,13 +938,24 @@ export function injectSidebarDepth(
     apply(detail.enabled);
   };
   view?.addEventListener?.(DESKTOP_LAYOUT_EVENT, onLayout);
-  const onChrome = (): void => {
+  const onChrome = (event: Event): void => {
+    const detail = readSidebarChromeDetail(Reflect.get(event, "detail"));
+    if (detail !== null) writeSidebarChrome(doc, detail);
     finger = null;
     heldHaptics = [];
     apply(desktopCardLayout);
   };
   view?.addEventListener?.(SIDEBAR_CHROME_EVENT, onChrome);
+  const onPin = (event: Event): void => {
+    const detail = readRibbonPinDetail(Reflect.get(event, "detail"));
+    if (detail === null || detail.pluginId !== pluginId) return;
+    pinRevision += 1;
+    writeRibbonPinEnabled(view?.localStorage, pluginId, detail.enabled);
+    applyRibbonPinAttribute(doc.documentElement, detail.enabled);
+  };
+  view?.addEventListener?.(RIBBON_PIN_EVENT, onPin);
   const token = revision;
+  const pinToken = pinRevision;
   const fetchImpl = view?.fetch?.bind(view);
   if (fetchImpl !== undefined) {
     void fetchDesktopLayoutEnabled(pluginId, fetchImpl)
@@ -901,15 +965,25 @@ export function injectSidebarDepth(
         apply(enabled);
       })
       .catch(() => {});
+    void fetchRibbonPinEnabled(pluginId, fetchImpl)
+      .then((enabled) => {
+        if (enabled === null || pinRevision !== pinToken) return;
+        writeRibbonPinEnabled(view?.localStorage, pluginId, enabled);
+        applyRibbonPinAttribute(doc.documentElement, enabled);
+      })
+      .catch(() => {});
   }
   const stopTrack = trackSidebarDepth(doc);
   return () => {
     revision += 1;
+    pinRevision += 1;
     view?.removeEventListener?.(DESKTOP_LAYOUT_EVENT, onLayout);
     view?.removeEventListener?.(SIDEBAR_CHROME_EVENT, onChrome);
+    view?.removeEventListener?.(RIBBON_PIN_EVENT, onPin);
     stopTrack();
     style.remove();
     clearSidebarChrome(doc);
+    doc.documentElement?.removeAttribute?.(RIBBON_PIN_ATTRIBUTE);
   };
 }
 
@@ -1210,21 +1284,26 @@ function readScreenSample(doc: Document, inset: HTMLElement): {
   translateX: number;
   sidebarShelf: string | null;
   panelShelf: string | null;
+  drawerOpen: boolean;
 } {
   const style = doc.defaultView?.getComputedStyle?.(inset) ?? {
     translate: inset.style.translate,
     transform: inset.style.transform,
   };
   const width = inset.getBoundingClientRect?.().width ?? 0;
+  const drawer = doc.querySelector?.(
+    '[data-sidebar="panel"][data-vaul-drawer-direction="left"]',
+  );
   return {
     translateX: readTranslateX(style, width),
     sidebarShelf: inset.getAttribute("data-sidebar-shelf"),
     panelShelf: inset.getAttribute("data-panel-shelf"),
+    drawerOpen: drawer?.getAttribute("data-state") === "open",
   };
 }
 
 function trackFingerDown(doc: Document, event: Event): void {
-  if (!usesPhoneShelf(readSidebarChrome(doc)) || prefersReducedMotion(doc)) return;
+  if (!usesPhoneHaptic(readSidebarChrome(doc)) || prefersReducedMotion(doc)) return;
   const point = eventPoint(event);
   if (point === null) return;
   if (event.type === "pointerdown" && point.button !== 0) return;
@@ -1273,7 +1352,7 @@ function trackFingerUp(doc: Document, event: Event): void {
   const held = heldHaptics;
   finger = null;
   heldHaptics = [];
-  if (!usesPhoneShelf(readSidebarChrome(doc)) || prefersReducedMotion(doc)) return;
+  if (!usesPhoneHaptic(readSidebarChrome(doc)) || prefersReducedMotion(doc)) return;
   primeSidebarPhase(doc);
   const decision = sidebarFingerRelease(sidebarPhase, release, held);
   const now = eventNow(doc);

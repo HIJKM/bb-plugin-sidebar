@@ -575,7 +575,7 @@ function assertSlideInFromHalfway(css: string): void {
   );
   assert.match(
     desktop,
-    /\[data-side="left"\]:not\(\[data-collapsible="offcanvas"\]\) \[data-testid\$="-sidebar-resize-handle"\] \{\s*position: fixed !important;\s*position-anchor: --bb-motion-left-column;\s*left: calc\(anchor\(right\) - 6px\) !important;\s*right: auto !important;\s*top: anchor\(top\) !important;\s*bottom: anchor\(bottom\) !important;\s*height: auto !important;\s*\}/,
+    /\[data-side="left"\]:not\(\[data-collapsible="offcanvas"\]\):not\(\[data-collapsible="rail"\]\) \[data-testid\$="-sidebar-resize-handle"\] \{\s*position: fixed !important;\s*position-anchor: --bb-motion-left-column;\s*left: calc\(anchor\(right\) - 6px\) !important;\s*right: auto !important;\s*top: anchor\(top\) !important;\s*bottom: anchor\(bottom\) !important;\s*height: auto !important;\s*\}/,
   );
   assert.doesNotMatch(mediaBody(css, "phone"), /sidebar-resize-handle/);
   assert.doesNotMatch(desktop, /--bb-motion-chat-canvas|--bb-motion-card-face|oklch/);
@@ -593,11 +593,11 @@ function assertSlideInFromHalfway(css: string): void {
 
   assert.match(
     desktop,
-    /\[data-side="left"\]:not\(\[data-collapsible="offcanvas"\]\) \[data-testid\$="-sidebar-resize-handle"\]::before \{\s*content: "";\s*top: 50% !important;\s*right: auto !important;\s*bottom: auto !important;\s*left: 50% !important;\s*width: 4px !important;\s*height: 32px !important;\s*border-radius: 999px;\s*background: var\(--sidebar-foreground\) !important;\s*opacity: 0;\s*transform: translate\(-50%, -50%\) !important;\s*pointer-events: none;\s*transition: opacity 120ms linear;\s*\}/,
+    /\[data-side="left"\]:not\(\[data-collapsible="offcanvas"\]\):not\(\[data-collapsible="rail"\]\) \[data-testid\$="-sidebar-resize-handle"\]::before \{\s*content: "";\s*top: 50% !important;\s*right: auto !important;\s*bottom: auto !important;\s*left: 50% !important;\s*width: 4px !important;\s*height: 32px !important;\s*border-radius: 999px;\s*background: var\(--sidebar-foreground\) !important;\s*opacity: 0;\s*transform: translate\(-50%, -50%\) !important;\s*pointer-events: none;\s*transition: opacity 120ms linear;\s*\}/,
   );
   assert.match(
     desktop,
-    /\[data-side="left"\]:not\(\[data-collapsible="offcanvas"\]\) \[data-testid\$="-sidebar-resize-handle"\]:hover::before,\s*\[data-side="left"\]:not\(\[data-collapsible="offcanvas"\]\) \[data-testid\$="-sidebar-resize-handle"\]:active::before \{\s*opacity: 1;\s*\}/,
+    /\[data-side="left"\]:not\(\[data-collapsible="offcanvas"\]\):not\(\[data-collapsible="rail"\]\) \[data-testid\$="-sidebar-resize-handle"\]:hover::before,\s*\[data-side="left"\]:not\(\[data-collapsible="offcanvas"\]\):not\(\[data-collapsible="rail"\]\) \[data-testid\$="-sidebar-resize-handle"\]:active::before \{\s*opacity: 1;\s*\}/,
   );
   const openLeft =
     desktop.match(/\[data-side="left"\] > \[data-sidebar="panel"\] \{[^}]*\}/)?.[0] ?? "";
@@ -634,7 +634,7 @@ function assertSlideInFromHalfway(css: string): void {
   );
   assert.match(
     desktop,
-    /\.dark \[data-side="left"\]:not\(\[data-collapsible="offcanvas"\]\) \[data-testid\$="-sidebar-resize-handle"\]::before,\s*\.dark #thread-detail-secondary-panel-handle > \[data-panel-resize-hit-target\]::before \{\s*background: var\(--sidebar-border\) !important;\s*\}/,
+    /\.dark \[data-side="left"\]:not\(\[data-collapsible="offcanvas"\]\):not\(\[data-collapsible="rail"\]\) \[data-testid\$="-sidebar-resize-handle"\]::before,\s*\.dark #thread-detail-secondary-panel-handle > \[data-panel-resize-hit-target\]::before \{\s*background: var\(--sidebar-border\) !important;\s*\}/,
   );
   assert.match(
     desktop,
@@ -761,6 +761,36 @@ function releaseSelectorMatches(element: ReleaseEl, selector: string): boolean {
 }
 
 describe("sidebar finger release", () => {
+  it("buzzes a wide phone without turning the sidebar into a desktop card", () => {
+    const chrome = { ...PHONE_CHROME, orientation: "landscape" as const, viewport: "medium" as const };
+    const css = sidebarDepthCss(true, chrome);
+    assert.match(css, /bb-sidebar-desktop-card \*\/\s*@media not all/);
+    assert.match(css, /bb-sidebar-phone-shelf \*\/\s*@media not all/);
+    const harness = mountFingerHarness(chrome);
+    try {
+      harness.sync();
+      harness.fire("pointerdown", {
+        type: "pointerdown",
+        button: 0,
+        pointerId: 1,
+        clientX: 8,
+        clientY: 8,
+        target: harness.trigger,
+      });
+      harness.fire("pointerup", {
+        type: "pointerup",
+        button: 0,
+        pointerId: 1,
+        clientX: 9,
+        clientY: 8,
+        target: harness.trigger,
+      });
+      assert.deepEqual(harness.sent, [{ type: "haptic", kind: "impact-light" }]);
+    } finally {
+      harness.stop();
+    }
+  });
+
   it("does not use phone release haptics on desktop at the same narrow viewport", () => {
     const harness = mountFingerHarness({ ...PHONE_CHROME, device: "desktop", hitTarget: "small" });
     try {
@@ -1222,6 +1252,21 @@ describe("nextSidebarPhase", () => {
   const rest = { side: "rest" as const, closeSent: false };
 
   it("pulses when either side opens and when it closes", () => {
+    const fromDrawer = nextSidebarPhase(rest, {
+      translateX: 0,
+      sidebarShelf: "closed",
+      panelShelf: "closed",
+      drawerOpen: true,
+    });
+    assert.deepEqual(fromDrawer.haptics, ["open"]);
+    const drawerClose = nextSidebarPhase(fromDrawer.phase, {
+      translateX: 0,
+      sidebarShelf: "closed",
+      panelShelf: "closed",
+      drawerOpen: false,
+    });
+    assert.deepEqual(drawerClose.haptics, ["close"]);
+
     const leftOpen = nextSidebarPhase(rest, {
       translateX: 40,
       sidebarShelf: null,
@@ -1404,6 +1449,7 @@ describe("sidebarDepthCss", () => {
     assert.doesNotMatch(off, /bb-sidebar-desktop-card/);
     assert.doesNotMatch(off, /--bb-motion-card-face/);
     assert.doesNotMatch(off, /offcanvas/);
+    assert.doesNotMatch(off, /data-bb-sidebar-ribbon-pin/);
     assert.doesNotMatch(off, /bb-motion-right-phase/);
     assert.match(off, /\/\* bb-sidebar-phone-shelf \*\/\s*@media (?:not )?all/);
     assert.match(
@@ -1411,6 +1457,10 @@ describe("sidebarDepthCss", () => {
       /@media \(prefers-reduced-motion: reduce\) \{\s*\[data-sidebar="gap"\],\s*\[data-sidebar="panel"\],\s*\[data-panel\] > aside,\s*\[data-testid="secondary-panel-shelf"\],\s*\[data-sidebar="inset"\]\[data-bb-motion-chat-dim\] \{/,
     );
     assert.match(sidebarDepthCss(true), /bb-sidebar-desktop-card \*\/\s*@media all/);
+    assert.match(
+      sidebarDepthCss(true),
+      /\[data-bb-sidebar-ribbon-pin\] \[data-collapsible="rail"\]\[data-side="left"\] > \[data-sidebar="gap"\] \{\s*width: calc\(2\.5rem \+ 20px\) !important;\s*\}/,
+    );
     assert.doesNotMatch(sidebarDepthCss(true), /min-width|max-width|pointer: fine/);
     assert.match(sidebarDepthCss(true), /color-mix\(in srgb, var\(--sidebar\) 62%, transparent\)/);
   });
